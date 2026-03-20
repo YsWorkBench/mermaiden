@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Iterable
+from html import escape
 
 
 # to override the other extract_init_instance_attributes ?
@@ -1253,15 +1254,12 @@ def mermaid_id(name: str, style: str = "flat") -> str:
     return safe_mermaid_id(name, MermaidIdStyle(style))
 
 
-def generate_mermaid(
+def generate_mermaid_source(
     classes: dict[str, ClassInfo],
     namespace: str = "nested",
     style: str = "flat",
 ) -> str:
     lines: list[str] = [
-        "# UML Class Diagram",
-        "",
-        "```mermaid",
         "classDiagram",
     ]
 
@@ -1286,23 +1284,87 @@ def generate_mermaid(
         tgt_id = classes[tgt_fqcn].class_id
         lines.append(f"{src_id} {rel_type.value} {tgt_id}")
 
-    lines.extend(["```", ""])
-    return "\n".join(lines)
+    return "\n".join(lines).strip() + "\n"
 
+def render_markdown_document(mermaid_source: str, title: str = "UML Class Diagram") -> str:
+    return (
+        f"# {title}\n\n"
+        "```mermaid\n"
+        f"{mermaid_source}"
+        "```\n"
+    )
 
-def write_mermaid_markdown(
+def render_html_document(
+    mermaid_source: str,
+    title: str = "Process Flow Diagram",
+) -> str:
+    escaped_mermaid = escape(mermaid_source)
+    return f"""<!DOCTYPE html>
+                <html lang="en">
+                <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>{escape(title)}</title>
+                </head>
+                <body>
+                <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs"></script>
+                <h1>{escape(title)}</h1>
+                <pre class="mermaid">
+                {escaped_mermaid}</pre>
+                </body>
+                </html>
+            """
+
+def write_diagram_output(
     classes: dict[str, ClassInfo],
     output_file: Path,
     namespace: str = "nested",
     style: str = "flat",
+    html_title: str = "Process Flow Diagram",
+    markdown_title: str = "UML Class Diagram",
 ) -> None:
-    output_file.write_text(
-        generate_mermaid(
-            classes,
-            namespace=namespace,
-            style=style,
-        ),
-        encoding="utf-8",
+    suffix = output_file.suffix.lower()
+
+    mermaid_source = generate_mermaid_source(
+        classes,
+        namespace=namespace,
+        style=style,
+    )
+
+    if suffix == ".md":
+        content = render_markdown_document(
+            mermaid_source,
+            title=markdown_title,
+        )
+    elif suffix == ".html":
+        content = render_html_document(
+            mermaid_source,
+            title=html_title
+        )
+    else:
+        raise ValueError(
+            f"Unsupported output extension '{output_file.suffix}'. "
+            "Supported extensions are .md and .html"
+        )
+
+    output_file.write_text(content, encoding="utf-8")
+
+
+def write_mermaid_output(
+    classes: dict[str, ClassInfo],
+    output_file: Path,
+    namespace: str = "nested",
+    style: str = "flat",
+    html_title: str = "Process Flow Diagram",
+    markdown_title: str = "UML Class Diagram",
+) -> None:
+    write_diagram_output(
+        classes=classes,
+        output_file=output_file,
+        namespace=namespace,
+        style=style,
+        html_title=html_title,
+        markdown_title=markdown_title,
     )
 
 
@@ -1335,11 +1397,13 @@ def cmd_diagram(args: argparse.Namespace) -> int:
         print("[ERROR] No classes could be rebuilt from inventory")
         return 1
 
-    write_mermaid_markdown(
+    write_mermaid_output(
         classes,
         output_file,
         namespace=args.namespace,
         style=args.style,
+        html_title=args.html_title,
+        markdown_title=args.markdown_title,
     )
     print(f"[OK] Mermaid diagram written to: {output_file}")
     print(f"[OK] Included {len(classes)} classes")
@@ -1373,7 +1437,17 @@ def build_parser() -> argparse.ArgumentParser:
         default="flat",
         help="How Mermaid identifiers are emitted",
     )
+    p2.add_argument(
+        "--markdown-title",
+        default="Mardown UML Class Diagram",
+        help="Document title for markdown output",
+    )
 
+    p2.add_argument(
+        "--html-title",
+        default="HTML UML Class Diagram",
+        help="Document title for HTML output",
+    )
     return parser
 
 
@@ -1385,5 +1459,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

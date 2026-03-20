@@ -1300,20 +1300,20 @@ def render_html_document(
 ) -> str:
     escaped_mermaid = escape(mermaid_source)
     return f"""<!DOCTYPE html>
-                <html lang="en">
-                <head>
-                <meta charset="utf-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <title>{escape(title)}</title>
-                </head>
-                <body>
-                <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs"></script>
-                <h1>{escape(title)}</h1>
-                <pre class="mermaid">
-                {escaped_mermaid}</pre>
-                </body>
-                </html>
-            """
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{escape(title)}</title>
+</head>
+<body>
+<script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs"></script>
+<h1>{escape(title)}</h1>
+<pre class="mermaid">
+{escaped_mermaid}</pre>
+</body>
+</html>
+"""
 
 def write_diagram_output(
     classes: dict[str, ClassInfo],

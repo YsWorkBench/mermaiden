@@ -1,8 +1,10 @@
-# Mardown UML Class Diagram
+### ctypes Mardown UML Class Diagram
 
 ```mermaid
 classDiagram
 namespace ctypes{
+  class ctypes__endian
+  class ctypes_wintypes
   class ctypes_CDLL["CDLL"] {
     -_FuncPtr: None
     -_func_flags_
@@ -103,61 +105,61 @@ namespace ctypes{
   class ctypes_py_object["py_object"] {
     -_type_: str
   }
-  namespace ctypes__endian{
-    class ctypes__endian_BigEndianStructure["BigEndianStructure"] {
-      -__slots__: tuple
-      -_swappedbytes_: None
-    }
-    class ctypes__endian_BigEndianUnion["BigEndianUnion"] {
-      -__slots__: tuple
-      -_swappedbytes_: None
-    }
-    class ctypes__endian_LittleEndianStructure["LittleEndianStructure"] {
-      -__slots__: tuple
-      -_swappedbytes_: None
-    }
-    class ctypes__endian_LittleEndianUnion["LittleEndianUnion"] {
-      -__slots__: tuple
-      -_swappedbytes_: None
-    }
-    class ctypes__endian__swapped_meta["_swapped_meta"] {
-    }
-    class ctypes__endian__swapped_struct_meta["_swapped_struct_meta"] {
-    }
-    class ctypes__endian__swapped_union_meta["_swapped_union_meta"] {
-    }
+}
+namespace ctypes__endian{
+  class ctypes__endian_BigEndianStructure["BigEndianStructure"] {
+    -__slots__: tuple
+    -_swappedbytes_: None
   }
-  namespace ctypes_wintypes{
-    class ctypes_wintypes_FILETIME["FILETIME"] {
-      -_fields_: list
-    }
-    class ctypes_wintypes_MSG["MSG"] {
-      -_fields_: list
-    }
-    class ctypes_wintypes_POINT["POINT"] {
-      -_fields_: list
-    }
-    class ctypes_wintypes_RECT["RECT"] {
-      -_fields_: list
-    }
-    class ctypes_wintypes_SIZE["SIZE"] {
-      -_fields_: list
-    }
-    class ctypes_wintypes_VARIANT_BOOL["VARIANT_BOOL"] {
-      -_type_: str
-    }
-    class ctypes_wintypes_WIN32_FIND_DATAA["WIN32_FIND_DATAA"] {
-      -_fields_: list
-    }
-    class ctypes_wintypes_WIN32_FIND_DATAW["WIN32_FIND_DATAW"] {
-      -_fields_: list
-    }
-    class ctypes_wintypes__COORD["_COORD"] {
-      -_fields_: list
-    }
-    class ctypes_wintypes__SMALL_RECT["_SMALL_RECT"] {
-      -_fields_: list
-    }
+  class ctypes__endian_BigEndianUnion["BigEndianUnion"] {
+    -__slots__: tuple
+    -_swappedbytes_: None
+  }
+  class ctypes__endian_LittleEndianStructure["LittleEndianStructure"] {
+    -__slots__: tuple
+    -_swappedbytes_: None
+  }
+  class ctypes__endian_LittleEndianUnion["LittleEndianUnion"] {
+    -__slots__: tuple
+    -_swappedbytes_: None
+  }
+  class ctypes__endian__swapped_meta["_swapped_meta"] {
+  }
+  class ctypes__endian__swapped_struct_meta["_swapped_struct_meta"] {
+  }
+  class ctypes__endian__swapped_union_meta["_swapped_union_meta"] {
+  }
+}
+namespace ctypes_wintypes{
+  class ctypes_wintypes_FILETIME["FILETIME"] {
+    -_fields_: list
+  }
+  class ctypes_wintypes_MSG["MSG"] {
+    -_fields_: list
+  }
+  class ctypes_wintypes_POINT["POINT"] {
+    -_fields_: list
+  }
+  class ctypes_wintypes_RECT["RECT"] {
+    -_fields_: list
+  }
+  class ctypes_wintypes_SIZE["SIZE"] {
+    -_fields_: list
+  }
+  class ctypes_wintypes_VARIANT_BOOL["VARIANT_BOOL"] {
+    -_type_: str
+  }
+  class ctypes_wintypes_WIN32_FIND_DATAA["WIN32_FIND_DATAA"] {
+    -_fields_: list
+  }
+  class ctypes_wintypes_WIN32_FIND_DATAW["WIN32_FIND_DATAW"] {
+    -_fields_: list
+  }
+  class ctypes_wintypes__COORD["_COORD"] {
+    -_fields_: list
+  }
+  class ctypes_wintypes__SMALL_RECT["_SMALL_RECT"] {
+    -_fields_: list
   }
 }
 

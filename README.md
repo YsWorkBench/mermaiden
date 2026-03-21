@@ -83,7 +83,7 @@ mermaiden diagram classes.txt --output UMLdiagram.md
 
 Which generates a Markdown file `UMLdiagram.md` with the following content for the `ctypes` module:
 
-![ctypesUML](examples/ctypesUML.md)
+::include{examples/ctypesUML}
 
 ### Advanced Options
 

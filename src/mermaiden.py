@@ -1434,7 +1434,7 @@ def build_parser() -> argparse.ArgumentParser:
     p2.add_argument(
         "--namespace",
         choices=["nested", "legacy"],
-        default="nested",
+        default="legacy",
         help="Namespace rendering mode: nested namespaces or legacy for compatibility fallback",
     )
     p2.add_argument(

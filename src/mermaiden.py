@@ -1419,6 +1419,12 @@ def build_parser() -> argparse.ArgumentParser:
     p1 = subparsers.add_parser("discover", help="Scan a root folder and write class inventory")
     p1.add_argument("root", help="Root folder to scan")
     p1.add_argument("--output", default="classes.txt", help="Inventory output file")
+    p1.add_argument(
+        "--style",
+        choices=["flat", "escaped"],
+        default="flat",
+        help="How Mermaid identifiers are emitted",
+    )
     p1.set_defaults(func=cmd_discover)
 
     p2 = subparsers.add_parser("diagram", help="Generate Mermaid UML from inventory")

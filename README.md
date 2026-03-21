@@ -56,10 +56,34 @@ After installation, you can use the `mermaiden` command:
 ```bash
 # Phase 1: Discover classes in a Python package
 mermaiden discover ./src --output classes.txt
+```
 
+Which will create a file `classes.txt` with the following content extracted from the `ctypes` module:
+
+```
+# ROOT	/usr/lib/python3.13/ctypes
+# FQCN	FILEPATH	LINENO	IMPORT_ROOT
+ctypes.CDLL	/usr/lib/python3.13/ctypes/__init__.py	322	/usr/lib/python3.13
+ctypes.CDLL._FuncPtr	/usr/lib/python3.13/ctypes/__init__.py	384	/usr/lib/python3.13
+```
+
+The different columns are:
+- `FQCN`: Fully Qualified Class Name
+- `FILEPATH`: Path to the file containing the class
+- `LINENO`: Line number where the class is defined
+- `IMPORT_ROOT`: Root directory for imports
+
+> [!NOTE] TODO
+> Check the `IMPORT_ROOT` usage, which is the root directory for imports, and might be unnecessary as the `FILEPATH` already contains the full path.
+
+```bash       
 # Phase 2: Generate Mermaid UML diagram from inventory
 mermaiden diagram classes.txt --output UMLdiagram.md
 ```
+
+Which generates a Markdown file `UMLdiagram.md` with the following content for the `ctypes` module:
+
+![ctypesUML](examples/ctypesUML.md)
 
 ### Advanced Options
 

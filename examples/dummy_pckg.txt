@@ -1,8 +1,8 @@
 # ROOT	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src
 # FQCN	FILEPATH	LINENO	IMPORT_ROOT
+dummy_aggregation	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/subpckg-aggregation/subpckg-aggregation.py	1	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
+dummy_association	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/subpckg-association/subpckg-association.py	1	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
+dummy_inheritance	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/subpckg-inheritance/subpckg-inheritance.py	1	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
 dummy_pckg.dummy	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/dummy_pckg.py	4	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
 dummy_pckg.dummy.dummy_composition	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/dummy_pckg.py	6	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
-subpckg-aggregation.subpckg-aggregation.dummy_aggregation	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/subpckg-aggregation/subpckg-aggregation.py	1	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
-subpckg-association.subpckg-association.dummy_association	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/subpckg-association/subpckg-association.py	1	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
-subpckg-inheritance.subpckg-inheritance.dummy_inheritance	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/subpckg-inheritance/subpckg-inheritance.py	1	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
-subpckg-realisation.subpckg-realisation.dummy_realisation	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/subpckg-realisation/subpckg-realisation.py	4	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg
+dummy_realisation	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg/src/subpckg-realisation/subpckg-realisation.py	4	/home/yoann/Documents/GPTprogramming/chatGPT-src-to-mermaid/examples/dummy_pckg

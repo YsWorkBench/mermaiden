@@ -40,7 +40,9 @@ def test_expr_and_annotation_stringification() -> None:
     assert expr_to_name(_parse_expr("list[str]")) == "list[str]"
     assert expr_to_name(_parse_expr("A | B")) == "A | B"
     assert annotation_to_str(_parse_expr("dict[str, int]")) == "dict[str, int]"
-    assert annotation_to_str(_parse_expr("tuple(None, Service)")) == "tuple[None, Service]"
+    assert (
+        annotation_to_str(_parse_expr("tuple(None, Service)")) == "tuple[None, Service]"
+    )
 
 
 def test_infer_type_from_value() -> None:

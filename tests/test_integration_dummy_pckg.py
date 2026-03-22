@@ -61,7 +61,9 @@ def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
     assert cmd_diagram(diagram_args) == 0
     assert diagram_out.exists()
 
-    assert _inventory_signature(inventory_out) == _inventory_signature(EXAMPLE_INVENTORY)
+    assert _inventory_signature(inventory_out) == _inventory_signature(
+        EXAMPLE_INVENTORY
+    )
 
     generated_diagram = diagram_out.read_text(encoding="utf-8")
     expected_diagram = EXAMPLE_DIAGRAM.read_text(encoding="utf-8")
@@ -197,4 +199,7 @@ def test_dummy_package_example_cli_aliases_off(tmp_path: Path) -> None:
     assert "namespace `dummy_pckg`{" in diagram_text
     assert 'namespace `dummy_pckg`["dummy_pckg"]{' not in diagram_text
     assert "class `dummy_pckg.dummy.dummy_composition`" in diagram_text
-    assert 'class `dummy_pckg.dummy.dummy_composition`["dummy.dummy_composition"]' not in diagram_text
+    assert (
+        'class `dummy_pckg.dummy.dummy_composition`["dummy.dummy_composition"]'
+        not in diagram_text
+    )

@@ -32,7 +32,9 @@ def test_discover_classes_and_basic_shapes(tmp_path: Path) -> None:
     assert "pkg.a.Child" in fqcns
 
 
-def test_discover_classes_namespace_from_root_includes_root_prefix(tmp_path: Path) -> None:
+def test_discover_classes_namespace_from_root_includes_root_prefix(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "src"
     root.mkdir(parents=True)
     (root / "__init__.py").write_text("", encoding="utf-8")

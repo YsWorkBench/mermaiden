@@ -197,6 +197,7 @@ def extract_class_level_attributes(node: ast.ClassDef) -> list[AttributeInfo]:
 
     return sorted(attrs.values(), key=lambda a: a.name)
 
+
 # Not used anymore ?
 def extract_attributes_from_ctor(
     node: ast.ClassDef,

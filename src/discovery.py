@@ -91,7 +91,9 @@ class RelationCollector:
             targets = set()
             for key in node.keys:
                 if key is not None:
-                    targets.update(RelationCollector._constructor_targets_from_value(key))
+                    targets.update(
+                        RelationCollector._constructor_targets_from_value(key)
+                    )
             for value in node.values:
                 targets.update(RelationCollector._constructor_targets_from_value(value))
             return targets
@@ -158,7 +160,9 @@ class RelationCollector:
         for sub in ast.walk(node):
             if isinstance(sub, ast.Assign):
                 rhs_name = sub.value.id if isinstance(sub.value, ast.Name) else None
-                rhs_constructor_targets = self._constructor_targets_from_value(sub.value)
+                rhs_constructor_targets = self._constructor_targets_from_value(
+                    sub.value
+                )
                 rhs_inferred_type = infer_type_from_value(sub.value)
                 propagated_type = param_types.get(rhs_name, "") if rhs_name else ""
                 final_type = propagated_type or rhs_inferred_type
@@ -433,7 +437,9 @@ def _split_namespace(module_name: str) -> list[str]:
 
 def _namespace_prefix_matches(module_name: str, prefix: str) -> bool:
     """Return True when module starts with prefix using normalized tokens."""
-    module_parts = [_normalize_namespace_token(p) for p in _split_namespace(module_name)]
+    module_parts = [
+        _normalize_namespace_token(p) for p in _split_namespace(module_name)
+    ]
     prefix_parts = [_normalize_namespace_token(p) for p in _split_namespace(prefix)]
     if not prefix_parts:
         return True
@@ -457,7 +463,9 @@ def _resolve_import_target(
             return None
         base_parts = package_parts[:base_len]
         module_parts = _split_namespace(module or "")
-        return ".".join([*base_parts, *module_parts]) if base_parts or module_parts else ""
+        return (
+            ".".join([*base_parts, *module_parts]) if base_parts or module_parts else ""
+        )
 
     if module:
         return module

@@ -1,6 +1,7 @@
 """Compatibility facade for the refactored mermaiden modules."""
 
 from __future__ import annotations
+import argparse
 
 from ast_logic import *  # noqa: F401,F403
 from discovery import *  # noqa: F401,F403
@@ -8,8 +9,6 @@ from inventory import *  # noqa: F401,F403
 from models import *  # noqa: F401,F403
 from paths import *  # noqa: F401,F403
 from render import *  # noqa: F401,F403
-
-from __future__ import annotations
 
 def cmd_discover(args: argparse.Namespace) -> int:
     root_dir = normalize_path(args.root)

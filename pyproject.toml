@@ -27,7 +27,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 requires-python = ">=3.8"
-dependencies = []
+dependencies = [
+    "pre-commit>=3.5.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -36,6 +38,15 @@ dev = [
     "black>=22.0",
     "isort>=5.0",
     "mypy>=1.0",
+    "flake8>=7.0",
+    "flake8-docstrings",
+    "flake8-import-order",
+    "flake8-bugbear",
+    "flake8-comprehensions",
+    "bandit>=1.7",
+    "pydocstyle>=6.0",
+    "pyupgrade>=3.0",
+    "pre-commit>=3.0",
 ]
 
 [project.urls]
@@ -65,6 +76,56 @@ python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+no_implicit_optional = true
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503", "E501"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".mypy_cache",
+    ".pytest_cache"
+]
+per-file-ignores = [
+    "tests/*:E501,F401,F811",
+    "__init__.py:F401"
+]
+max-complexity = 10
+import-order-style = "google"
+application-import-names = "mermaiden"
+
+[tool.bandit]
+exclude_dirs = ["tests", "test_*"]
+skips = ["B101", "B601"]
+
+[tool.pydocstyle]
+convention = "google"
+add-ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107"]
+
+[tool.pyupgrade]
+py38-plus = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q -ra --strict-markers"
+filterwarnings = [
+    "error::DeprecationWarning",
+    "error::PendingDeprecationWarning",
+]
 
 [dependency-groups]
 test = [

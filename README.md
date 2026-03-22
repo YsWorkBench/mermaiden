@@ -220,19 +220,80 @@ This project is licensed under the GNU General Public License v3.0 or later. See
 
 Contributions are welcome! Please feel free to submit a Pull Request. For development:
 
+### Development Setup
+
 ```bash
 # Install in development mode
 pip install -e ".[dev]"
 
-# Run tests
-pytest
+# Or using uv
+uv pip install -e ".[dev]"
+```
 
+### Pre-commit Hooks
+
+This project uses pre-commit hooks to ensure code quality. To set them up:
+
+```bash
+# Install pre-commit (if not already installed)
+pip install pre-commit
+
+# Install the hooks
+pre-commit install
+
+# Run hooks on all files (initial setup)
+pre-commit run --all-files
+```
+
+The pre-commit configuration includes:
+- **Black**: Code formatting
+- **isort**: Import sorting
+- **flake8**: Linting with comprehensive plugins
+- **mypy**: Static type checking
+- **bandit**: Security vulnerability scanning
+- **pyupgrade**: Python syntax modernization
+- **pydocstyle**: Docstring style checking
+- **Safety**: Dependency vulnerability checking
+
+### Manual Code Quality Checks
+
+You can also run the tools manually:
+
+```bash
 # Format code
-black src/
-isort src/
+black src/ tests/
+isort src/ tests/
+
+# Lint code
+flake8 src/ tests/
 
 # Type checking
 mypy src/
+
+# Security check
+bandit -r src/
+
+# Check dependencies
+safety check
+
+# Upgrade syntax
+pyupgrade --py38-plus src/ tests/
+
+# Check docstrings
+pydocstyle src/
+```
+
+### Testing
+
+```bash
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=src --cov-report=html
+
+# Run specific test file
+pytest tests/test_example.py
 ```
 
 ## Examples

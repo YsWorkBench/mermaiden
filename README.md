@@ -21,6 +21,12 @@ Indeed, everything in this adventure was assisted by AI, even the logo.
 
 This package is compatible with Python `3.10+` and Mermaid `10.7.0` with some extra compatibility with Mermaid `11.X.0`.
 
+Here is the actual Mermaid version used:
+
+```mermaid
+info
+```
+
 ## Installation
 
 ### From Source

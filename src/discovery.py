@@ -825,14 +825,22 @@ def collect_all_relations(
                 if should_treat_base_as_realization(base, target, classes)
                 else RelationType.INHERITANCE
             )
-            key = (target, cls.fqcn)
+            key = (
+                (cls.fqcn, target)
+                if rel_type == RelationType.REALIZATION
+                else (target, cls.fqcn)
+            )
             resolved[key] = merge_relation(resolved.get(key, rel_type), rel_type)
 
         for rel in cls.relations:
             target = resolve_target_name(rel.target_name, cls, classes)
             if not target or target == cls.fqcn:
                 continue
-            key = (cls.fqcn, target)
+            key = (
+                (target, cls.fqcn)
+                if rel.relation_type == RelationType.ASSOCIATION
+                else (cls.fqcn, target)
+            )
             resolved[key] = merge_relation(
                 resolved.get(key, rel.relation_type), rel.relation_type
             )

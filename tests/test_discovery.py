@@ -80,7 +80,7 @@ def test_discover_classes_collects_non_inheritance_relations(tmp_path: Path) -> 
     assert ("pkg.deps.Base", RelationType.INHERITANCE, "pkg.app.Child") in rels
     assert ("pkg.app.Child", RelationType.AGGREGATION, "pkg.deps.Repo") in rels
     assert ("pkg.app.Child", RelationType.AGGREGATION, "pkg.deps.Service") in rels
-    assert ("pkg.app.Child", RelationType.ASSOCIATION, "pkg.deps.Entity") in rels
+    assert ("pkg.deps.Entity", RelationType.ASSOCIATION, "pkg.app.Child") in rels
     assert ("pkg.app.Child", RelationType.COMPOSITION, "pkg.app.Child.Internal") in rels
 
 
@@ -110,7 +110,7 @@ def test_discover_classes_follow_init_py_flattens_namespaces(tmp_path: Path) -> 
     assert "pkg.subpkg.defs.Exported" not in init_classes
 
     rels = set(collect_all_relations(init_classes))
-    assert ("pkg.consumer.Consumer", RelationType.ASSOCIATION, "pkg.Exported") in rels
+    assert ("pkg.Exported", RelationType.ASSOCIATION, "pkg.consumer.Consumer") in rels
 
 
 def test_resolve_target_name_and_merge_relation() -> None:
@@ -173,7 +173,7 @@ def test_collect_all_relations_uses_realization_for_abstract_bases() -> None:
     )
 
     rels = collect_all_relations({"pkg.Contract": contract, "pkg.Impl": impl})
-    assert ("pkg.Contract", RelationType.REALIZATION, "pkg.Impl") in rels
+    assert ("pkg.Impl", RelationType.REALIZATION, "pkg.Contract") in rels
 
 
 def test_rebuild_class_map_from_inventory(tmp_path: Path) -> None:

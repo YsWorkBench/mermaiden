@@ -12,18 +12,6 @@ from paths import *
 from render import *
 
 
-def parse_bool_arg(value: str) -> bool:
-    """Parse boolean CLI values like true/false, yes/no, 1/0."""
-    lowered = value.strip().lower()
-    if lowered in {"1", "true", "yes", "y", "on"}:
-        return True
-    if lowered in {"0", "false", "no", "n", "off"}:
-        return False
-    raise argparse.ArgumentTypeError(
-        f"Invalid boolean value '{value}'. Use true/false."
-    )
-
-
 def cmd_discover(args: argparse.Namespace) -> int:
     """Run the ``discover`` CLI command."""
     root_dir = normalize_path(args.root)
@@ -52,7 +40,7 @@ def cmd_diagram(args: argparse.Namespace) -> int:
     """Run the ``diagram`` CLI command."""
     inventory_file = normalize_path(args.inventory)
     output_file = normalize_path(args.output)
-    aliases = getattr(args, "aliases", True)
+    aliases = getattr(args, "aliases", False)
 
     if not inventory_file.exists():
         print(f"[ERROR] Inventory file not found: {inventory_file}")

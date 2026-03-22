@@ -362,9 +362,9 @@ namespace `dummy_pckg`{
 
 `dummy_inheritance` <|-- `dummy_realisation`
 `dummy_pckg.dummy` o-- `dummy_aggregation`
-`dummy_pckg.dummy` --> `dummy_association`
+`dummy_pckg.dummy` <-- `dummy_association`
 `dummy_pckg.dummy` *-- `dummy_pckg.dummy.dummy_composition`
-`dummy_realisation` ..|> `dummy_pckg.dummy`
+`dummy_realisation` <|.. `dummy_pckg.dummy`
 ```
 
 

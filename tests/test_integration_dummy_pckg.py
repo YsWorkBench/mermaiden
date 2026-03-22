@@ -68,12 +68,12 @@ def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
     assert generated_diagram == expected_diagram
 
     assert (
-        "`dummy_pckg.dummy` --> "
-        "`subpckg-association.subpckg-association.dummy_association`"
+        "`subpckg-association.subpckg-association.dummy_association` --> "
+        "`dummy_pckg.dummy`"
     ) in generated_diagram
     assert (
-        "`subpckg-realisation.subpckg-realisation.dummy_realisation` ..|> "
-        "`dummy_pckg.dummy`"
+        "`dummy_pckg.dummy` ..|> "
+        "`subpckg-realisation.subpckg-realisation.dummy_realisation`"
     ) in generated_diagram
 
 
@@ -116,8 +116,8 @@ def test_dummy_package_example_cli_follow_init_py(tmp_path: Path) -> None:
     assert "namespace `src`{" not in diagram_text
     assert "namespace `src.subpckg-association`{" not in diagram_text
     assert "namespace `subpckg-association`{" not in diagram_text
-    assert "`dummy_pckg.dummy` --> `dummy_association`" in diagram_text
-    assert "`dummy_realisation` ..|> `dummy_pckg.dummy`" in diagram_text
+    assert "`dummy_association` --> `dummy_pckg.dummy`" in diagram_text
+    assert "`dummy_pckg.dummy` ..|> `dummy_realisation`" in diagram_text
 
 
 def test_dummy_package_example_cli_namespace_from_root(tmp_path: Path) -> None:
@@ -158,8 +158,8 @@ def test_dummy_package_example_cli_namespace_from_root(tmp_path: Path) -> None:
     assert 'namespace `src`["src"]{' in diagram_text
     assert 'namespace `src.dummy_pckg`["src.dummy_pckg"]{' in diagram_text
     assert (
-        "`src.dummy_pckg.dummy` --> "
-        "`src.subpckg-association.subpckg-association.dummy_association`"
+        "`src.subpckg-association.subpckg-association.dummy_association` --> "
+        "`src.dummy_pckg.dummy`"
     ) in diagram_text
 
 

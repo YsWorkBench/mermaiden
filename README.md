@@ -97,6 +97,7 @@ Which generates a Markdown file `UMLdiagram.md` with the following [content](exa
 
 ![ctypes UML diagram printed from html](examples/ctypesUML.png)
 
+
 ### Advanced Options
 
 ```bash
@@ -333,6 +334,37 @@ mermaiden discover ./examples/dummy_pckg/src --output examples/dummy_pckg_from_r
 
 # Phase 2: Generate Mermaid UML diagram from inventory
 mermaiden diagram examples/dummy_pckg.txt --output examples/dummy_pckgUML.md --style escaped --namespace nested
+```
+
+Which generated this Mermaid UML diagram that should be compatible with github Mermaid `11.13.0`.
+
+```mermaid
+classDiagram
+class `dummy_aggregation` {
+}
+class `dummy_association` {
+}
+class `dummy_inheritance` {
+}
+class `dummy_realisation` {
+  +MyABC()
+}
+namespace `dummy_pckg`{
+  class `dummy_pckg.dummy` {
+    +aggregations: tuple[None, list[dummy_aggregation]]
+    +association: dummy_association
+    +composition: list[dummy_composition]
+    +MyABC()
+  }
+  class `dummy_pckg.dummy.dummy_composition` {
+  }
+}
+
+`dummy_inheritance` <|-- `dummy_realisation`
+`dummy_pckg.dummy` o-- `dummy_aggregation`
+`dummy_pckg.dummy` --> `dummy_association`
+`dummy_pckg.dummy` *-- `dummy_pckg.dummy.dummy_composition`
+`dummy_realisation` ..|> `dummy_pckg.dummy`
 ```
 
 

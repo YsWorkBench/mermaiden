@@ -15,9 +15,19 @@ def test_mermaiden_module_is_parseable() -> None:
 def test_build_parser_from_cli_namespace() -> None:
     parser = build_parser()
     args = parser.parse_args(["discover", "./src"])
+    args_follow_init = parser.parse_args(["discover", "./src", "--follow", "init.py"])
+    args_from_root = parser.parse_args(["discover", "./src", "--namespace-from-root"])
+    diagram_aliases_off = parser.parse_args(
+        ["diagram", "classes.txt", "--aliases", "false"]
+    )
 
     assert args.command == "discover"
     assert args.style in {"flat", "escaped"}
+    assert args.follow in {"path", "init.py"}
+    assert args.namespace_from_root is False
+    assert args_follow_init.follow == "init.py"
+    assert args_from_root.namespace_from_root is True
+    assert diagram_aliases_off.aliases is False
 
 
 def test_cmd_discover_and_cmd_diagram_work_end_to_end(tmp_path: Path) -> None:
@@ -30,12 +40,19 @@ def test_cmd_discover_and_cmd_diagram_work_end_to_end(tmp_path: Path) -> None:
     inv = tmp_path / "classes.txt"
     out = tmp_path / "diagram.md"
 
-    discover_args = argparse.Namespace(root=str(root), output=str(inv), style="flat")
+    discover_args = argparse.Namespace(
+        root=str(root),
+        output=str(inv),
+        style="flat",
+        follow="path",
+        namespace_from_root=False,
+    )
     diagram_args = argparse.Namespace(
         inventory=str(inv),
         output=str(out),
         namespace="legacy",
         style="flat",
+        aliases=True,
         html_title="HTML UML Class Diagram",
         markdown_title="Mardown UML Class Diagram",
     )

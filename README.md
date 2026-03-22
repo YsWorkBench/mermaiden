@@ -5,7 +5,7 @@ A Python package to discover class relationships in Python packages and draw the
 + The [pymermaider](https://github.com/diceroll123/pymermaider) project, but the issue was pymermaider could only generate one diagram for each single python module with incorrect joint namespace handling. Additionally, it couldn't handle complex class relationships properly.
 + The [mermaid-py](https://github.com/ouhammmourachid/mermaid-py) which couldn't handle class diagrams at the time I started this AI coding adventure.
 
-Indeed, everything in this adventure was assisted by AI, even the logo. 
+Indeed, everything in this adventure was assisted by AI, even the logo.
 
 ## Features
 
@@ -62,6 +62,12 @@ After installation, you can use the `mermaiden` command:
 ```bash
 # Phase 1: Discover classes in a Python package
 mermaiden discover ./src --output classes.txt
+
+# Follow package exports declared in __init__.py instead of raw filesystem paths
+mermaiden discover ./src --output classes.txt --follow init.py
+
+# Start namespaces from the provided root directory
+mermaiden discover ./src --output classes.txt --namespace-from-root
 ```
 
 Which will create a file `classes.txt` with the following content extracted from the `ctypes` module:
@@ -82,7 +88,7 @@ The different columns are:
 > [!NOTE] TODO
 > Check the `IMPORT_ROOT` usage, which is the root directory for imports, and might be unnecessary as the `FILEPATH` already contains the full path.
 
-```bash       
+```bash
 # Phase 2: Generate Mermaid UML diagram from inventory
 mermaiden diagram classes.txt --output UMLdiagram.md
 ```
@@ -102,6 +108,9 @@ mermaiden diagram classes.txt --namespace nested
 
 # Choose identifier style (flat or escaped)
 mermaiden diagram classes.txt --style flat
+
+# Toggle aliases for classes and namespaces
+mermaiden diagram classes.txt --aliases
 
 # Custom titles
 mermaiden diagram classes.txt --markdown-title "My Project UML" --html-title "My Project Diagram"
@@ -177,8 +186,29 @@ classDiagram
                 ...
             }
         }
-        
+
     }
+```
+
++ `--aliases`
+  + given: emits aliases on class and namespace declarations
+
+```
+class `dummy_pckg.dummy.dummy_composition`["dummy.dummy_composition"] {
+}
+namespace `dummy_pckg`["dummy_pckg"]{
+  ...
+}
+```
+
+  + not given: (defaults) emits raw identifiers without aliases, as they are unecessary with `--style=escaped`. Also for compatibility reasons as Mermaid `10.7.0` doesn't support aliases.
+
+```
+class `dummy_pckg.dummy.dummy_composition` {
+}
+namespace `dummy_pckg`{
+  ...
+}
 ```
 
 So this package wishes to be able to use all the new functionalities of Mermaid in future stable versions while being compatible with older versions.
@@ -250,37 +280,16 @@ The pre-commit configuration includes:
 - **isort**: Import sorting
 - **flake8**: Linting with comprehensive plugins
 - **mypy**: Static type checking
-- **bandit**: Security vulnerability scanning
-- **pyupgrade**: Python syntax modernization
-- **pydocstyle**: Docstring style checking
-- **Safety**: Dependency vulnerability checking
 
 ### Manual Code Quality Checks
 
 You can also run the tools manually:
 
 ```bash
-# Format code
 black src/ tests/
 isort src/ tests/
-
-# Lint code
 flake8 src/ tests/
-
-# Type checking
 mypy src/
-
-# Security check
-bandit -r src/
-
-# Check dependencies
-safety check
-
-# Upgrade syntax
-pyupgrade --py38-plus src/ tests/
-
-# Check docstrings
-pydocstyle src/
 ```
 
 ### Testing
@@ -309,6 +318,23 @@ mermaiden discover /usr/lib/python3.13/ctypes --output ctypes.txt
 # Phase 2: Generate Mermaid UML diagram from inventory
 mermaiden diagram ctypes.txt --output ctypesUML.md
 ```
+
+### The dummy package example
+
+```bash
+# Phase 1: Discover classes in the dummy package
+mermaiden discover ./examples/dummy_pckg/src --output examples/dummy_pckg.txt --style escaped
+
+# Phase 1 (alternative): follow re-exports from __init__.py to flatten namespaces
+mermaiden discover ./examples/dummy_pckg/src --output examples/dummy_pckg_follow_init.txt --style escaped --follow init.py
+
+# Phase 1 (alternative): add the leading `src.` namespace prefix
+mermaiden discover ./examples/dummy_pckg/src --output examples/dummy_pckg_from_root.txt --style escaped --namespace-from-root
+
+# Phase 2: Generate Mermaid UML diagram from inventory
+mermaiden diagram examples/dummy_pckg.txt --output examples/dummy_pckgUML.md --style escaped --namespace nested
+```
+
 
 ### Django Project Example (Auto-generated)
 

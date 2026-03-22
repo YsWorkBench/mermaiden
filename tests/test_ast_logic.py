@@ -6,7 +6,7 @@ from ast_logic import (
     annotation_to_str,
     expr_to_name,
     extract_class_level_attributes,
-    extract_init_instance_attributes_types_from_constructor,
+    extract_attributes_from_ctor,
     extract_method_info,
     infer_type_from_value,
     looks_like_interface,
@@ -40,6 +40,7 @@ def test_expr_and_annotation_stringification() -> None:
     assert expr_to_name(_parse_expr("list[str]")) == "list[str]"
     assert expr_to_name(_parse_expr("A | B")) == "A | B"
     assert annotation_to_str(_parse_expr("dict[str, int]")) == "dict[str, int]"
+    assert annotation_to_str(_parse_expr("tuple(None, Service)")) == "tuple[None, Service]"
 
 
 def test_infer_type_from_value() -> None:
@@ -47,6 +48,10 @@ def test_infer_type_from_value() -> None:
     assert infer_type_from_value(_parse_expr("None")) == "None"
     assert infer_type_from_value(_parse_expr("[]")) == "list"
     assert infer_type_from_value(_parse_expr("MyType()")) == "MyType"
+    assert (
+        infer_type_from_value(_parse_expr("[Service() for _ in range(3)]"))
+        == "list[Service]"
+    )
 
 
 def test_method_filters_and_type_split() -> None:
@@ -69,7 +74,12 @@ def test_extract_method_info() -> None:
     info = extract_method_info(fn)
 
     assert info.name == "f"
-    assert info.params == [("x", "int"), ("*args", "str"), ("y", "bool"), ("**kwargs", "float")]
+    assert info.params == [
+        ("x", "int"),
+        ("*args", "str"),
+        ("y", "bool"),
+        ("**kwargs", "float"),
+    ]
     assert info.return_type == "Result"
 
 
@@ -87,7 +97,7 @@ def test_extract_class_attributes_and_init_instance_attributes() -> None:
     class_attrs = extract_class_level_attributes(cls)
     assert [(a.name, a.type_name) for a in class_attrs] == [("x", "int"), ("y", "str")]
 
-    init_attrs = extract_init_instance_attributes_types_from_constructor(cls)
+    init_attrs = extract_attributes_from_ctor(cls)
     pairs = [(a.name, a.type_name) for a in init_attrs]
     assert ("count", "int") in pairs
     assert ("dep", "Service") in pairs

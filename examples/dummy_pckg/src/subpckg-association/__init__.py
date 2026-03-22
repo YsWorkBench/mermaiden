@@ -1,0 +1,1 @@
+from subpckg_association import dummy_association

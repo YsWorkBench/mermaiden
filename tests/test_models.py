@@ -43,7 +43,9 @@ def test_mermaid_id_invalid_style_raises() -> None:
 
 def test_build_namespace_tree_places_classes_in_nodes() -> None:
     classes = {
-        "pkg.mod.A": ClassInfo("pkg_mod_A", "pkg.mod.A", "pkg.mod", "A", "A", "/tmp/a.py", 1),
+        "pkg.mod.A": ClassInfo(
+            "pkg_mod_A", "pkg.mod.A", "pkg.mod", "A", "A", "/tmp/a.py", 1
+        ),
         "Top": ClassInfo("Top", "Top", "", "Top", "Top", "/tmp/t.py", 1),
     }
 

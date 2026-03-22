@@ -46,9 +46,20 @@ def test_generate_mermaid_source_nested_and_legacy() -> None:
     legacy = generate_mermaid_source(classes, namespace="legacy")
 
     assert nested.startswith("classDiagram")
-    assert "namespace pkg{" in nested
+    assert 'namespace pkg["pkg"]{' in nested
+    assert 'class pkg_Base["Base"] {' in nested
     assert "pkg_Base <|-- pkg_Child" in nested
     assert legacy.startswith("classDiagram")
+
+
+def test_generate_mermaid_source_without_aliases() -> None:
+    classes = _sample_classes()
+    nested = generate_mermaid_source(classes, namespace="nested", aliases=False)
+
+    assert "namespace pkg{" in nested
+    assert 'namespace pkg["pkg"]{' not in nested
+    assert "class pkg_Base {" in nested
+    assert 'class pkg_Base["Base"] {' not in nested
 
 
 def test_generate_mermaid_source_bad_namespace_raises() -> None:

@@ -1,24 +1,46 @@
 """Compatibility facade for the refactored mermaiden modules."""
 
 from __future__ import annotations
+
 import argparse
 
-from ast_logic import *  # noqa: F401,F403
-from discovery import *  # noqa: F401,F403
-from inventory import *  # noqa: F401,F403
-from models import *  # noqa: F401,F403
-from paths import *  # noqa: F401,F403
-from render import *  # noqa: F401,F403
+from ast_logic import *
+from discovery import *
+from inventory import *
+from models import *
+from paths import *
+from render import *
+
+
+def parse_bool_arg(value: str) -> bool:
+    """Parse boolean CLI values like true/false, yes/no, 1/0."""
+    lowered = value.strip().lower()
+    if lowered in {"1", "true", "yes", "y", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(
+        f"Invalid boolean value '{value}'. Use true/false."
+    )
+
 
 def cmd_discover(args: argparse.Namespace) -> int:
+    """Run the ``discover`` CLI command."""
     root_dir = normalize_path(args.root)
     output_file = normalize_path(args.output)
+    follow_mode = getattr(args, "follow", "path")
+    namespace_from_root = getattr(args, "namespace_from_root", False)
 
     if not root_dir.exists() or not root_dir.is_dir():
         print(f"[ERROR] Not a valid directory: {root_dir}")
         return 1
 
-    classes = discover_classes(root_dir, style=args.style)
+    classes = discover_classes(
+        root_dir,
+        style=args.style,
+        follow=follow_mode,
+        namespace_from_root=namespace_from_root,
+    )
     write_inventory(classes, output_file, root_dir)
 
     print(f"[OK] Discovered {len(classes)} classes")
@@ -27,8 +49,10 @@ def cmd_discover(args: argparse.Namespace) -> int:
 
 
 def cmd_diagram(args: argparse.Namespace) -> int:
+    """Run the ``diagram`` CLI command."""
     inventory_file = normalize_path(args.inventory)
     output_file = normalize_path(args.output)
+    aliases = getattr(args, "aliases", True)
 
     if not inventory_file.exists():
         print(f"[ERROR] Inventory file not found: {inventory_file}")
@@ -44,6 +68,7 @@ def cmd_diagram(args: argparse.Namespace) -> int:
         output_file,
         namespace=args.namespace,
         style=args.style,
+        aliases=aliases,
         html_title=args.html_title,
         markdown_title=args.markdown_title,
     )
@@ -53,12 +78,15 @@ def cmd_diagram(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
         description="Discover Python classes and generate Mermaid UML diagrams"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    p1 = subparsers.add_parser("discover", help="Scan a root folder and write class inventory")
+    p1 = subparsers.add_parser(
+        "discover", help="Scan a root folder and write class inventory"
+    )
     p1.add_argument("root", help="Root folder to scan")
     p1.add_argument("--output", default="classes.txt", help="Inventory output file")
     p1.add_argument(
@@ -66,6 +94,17 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["flat", "escaped"],
         default="flat",
         help="How Mermaid identifiers are emitted",
+    )
+    p1.add_argument(
+        "--follow",
+        choices=["path", "init.py"],
+        default="path",
+        help="How module namespaces are resolved: filesystem paths or __init__.py exports",
+    )
+    p1.add_argument(
+        "--namespace-from-root",
+        action="store_true",
+        help="Build class namespaces relative to the discovery root directory",
     )
     p1.set_defaults(func=cmd_discover)
 
@@ -86,6 +125,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="How Mermaid identifiers are emitted",
     )
     p2.add_argument(
+        "--aliases",
+        action="store_true",
+        help="Whether Mermaid aliases are emitted for classes and namespaces",
+    )
+    p2.add_argument(
         "--markdown-title",
         default="Mardown UML Class Diagram",
         help="Document title for markdown output",
@@ -100,6 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Entry point for the ``mermaiden`` CLI."""
     parser = build_parser()
     args = parser.parse_args()
     return args.func(args)

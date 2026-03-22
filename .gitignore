@@ -185,12 +185,5 @@ cython_debug/
 ehthumbs.db
 Thumbs.db
 
-# Project specific
-classes.txt
-*.txt
-!README.md
-!LICENSE
-!requirements*..txt
-
 # Package managers
 uv.lock

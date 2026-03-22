@@ -32,6 +32,87 @@ def test_discover_classes_and_basic_shapes(tmp_path: Path) -> None:
     assert "pkg.a.Child" in fqcns
 
 
+def test_discover_classes_namespace_from_root_includes_root_prefix(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    root.mkdir(parents=True)
+    (root / "__init__.py").write_text("", encoding="utf-8")
+    (root / "mod.py").write_text("class A:\n    pass\n", encoding="utf-8")
+
+    default_classes = {cls.fqcn for cls in discover_classes(root)}
+    from_root_classes = {
+        cls.fqcn for cls in discover_classes(root, namespace_from_root=True)
+    }
+
+    assert "mod.A" in default_classes
+    assert "src.mod.A" in from_root_classes
+    assert "mod.A" not in from_root_classes
+
+
+def test_discover_classes_collects_non_inheritance_relations(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "deps.py").write_text(
+        "class Service:\n    pass\n"
+        "class Repo:\n    pass\n"
+        "class Entity:\n    pass\n"
+        "class Base:\n    pass\n",
+        encoding="utf-8",
+    )
+    (pkg / "app.py").write_text(
+        "from .deps import Base, Entity, Repo, Service\n"
+        "class Child(Base):\n"
+        "    class Internal:\n"
+        "        pass\n"
+        "    def __init__(self, repo: tuple(None, Repo), services: tuple(None, list[Service]) = None):\n"
+        "        self.repo = repo\n"
+        "        self.services = services\n"
+        "        self.internal = [Internal() for _ in range(3)]\n"
+        "    def run(self, entity: Entity) -> None:\n"
+        "        return None\n",
+        encoding="utf-8",
+    )
+
+    classes = {cls.fqcn: cls for cls in discover_classes(root)}
+    rels = set(collect_all_relations(classes))
+
+    assert ("pkg.deps.Base", RelationType.INHERITANCE, "pkg.app.Child") in rels
+    assert ("pkg.app.Child", RelationType.AGGREGATION, "pkg.deps.Repo") in rels
+    assert ("pkg.app.Child", RelationType.AGGREGATION, "pkg.deps.Service") in rels
+    assert ("pkg.app.Child", RelationType.ASSOCIATION, "pkg.deps.Entity") in rels
+    assert ("pkg.app.Child", RelationType.COMPOSITION, "pkg.app.Child.Internal") in rels
+
+
+def test_discover_classes_follow_init_py_flattens_namespaces(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    subpkg = pkg / "subpkg"
+    subpkg.mkdir(parents=True)
+
+    (pkg / "__init__.py").write_text("from .subpkg import *\n", encoding="utf-8")
+    (subpkg / "__init__.py").write_text(
+        "from .defs import Exported\n", encoding="utf-8"
+    )
+    (subpkg / "defs.py").write_text("class Exported:\n    pass\n", encoding="utf-8")
+    (pkg / "consumer.py").write_text(
+        "class Consumer:\n"
+        "    def __init__(self, dep: Exported):\n"
+        "        self.dep = dep\n",
+        encoding="utf-8",
+    )
+
+    path_classes = {cls.fqcn: cls for cls in discover_classes(root, follow="path")}
+    assert "pkg.subpkg.defs.Exported" in path_classes
+
+    init_classes = {cls.fqcn: cls for cls in discover_classes(root, follow="init.py")}
+    assert "pkg.Exported" in init_classes
+    assert "pkg.subpkg.defs.Exported" not in init_classes
+
+    rels = set(collect_all_relations(init_classes))
+    assert ("pkg.consumer.Consumer", RelationType.ASSOCIATION, "pkg.Exported") in rels
+
+
 def test_resolve_target_name_and_merge_relation() -> None:
     cls_a = ClassInfo("A", "pkg.A", "pkg", "A", "A", "a.py", 1)
     cls_b = ClassInfo("B", "pkg.B", "pkg", "B", "B", "b.py", 1)
@@ -41,8 +122,14 @@ def test_resolve_target_name_and_merge_relation() -> None:
     assert resolve_target_name("B", cls_a, known) == "pkg.B"
     assert resolve_target_name("Missing", cls_a, known) is None
 
-    assert merge_relation(RelationType.ASSOCIATION, RelationType.COMPOSITION) == RelationType.COMPOSITION
-    assert merge_relation(RelationType.INHERITANCE, RelationType.ASSOCIATION) == RelationType.INHERITANCE
+    assert (
+        merge_relation(RelationType.ASSOCIATION, RelationType.COMPOSITION)
+        == RelationType.COMPOSITION
+    )
+    assert (
+        merge_relation(RelationType.INHERITANCE, RelationType.ASSOCIATION)
+        == RelationType.INHERITANCE
+    )
 
 
 def test_collect_all_relations_resolves_inheritance_and_association() -> None:
@@ -61,6 +148,32 @@ def test_collect_all_relations_resolves_inheritance_and_association() -> None:
 
     rels = collect_all_relations({"pkg.Base": base, "pkg.Child": child})
     assert ("pkg.Base", RelationType.INHERITANCE, "pkg.Child") in rels
+
+
+def test_collect_all_relations_uses_realization_for_abstract_bases() -> None:
+    contract = ClassInfo(
+        "pkg_Contract",
+        "pkg.Contract",
+        "pkg",
+        "Contract",
+        "Contract",
+        "a.py",
+        1,
+        bases=["ABC"],
+    )
+    impl = ClassInfo(
+        "pkg_Impl",
+        "pkg.Impl",
+        "pkg",
+        "Impl",
+        "Impl",
+        "a.py",
+        2,
+        bases=["Contract"],
+    )
+
+    rels = collect_all_relations({"pkg.Contract": contract, "pkg.Impl": impl})
+    assert ("pkg.Contract", RelationType.REALIZATION, "pkg.Impl") in rels
 
 
 def test_rebuild_class_map_from_inventory(tmp_path: Path) -> None:

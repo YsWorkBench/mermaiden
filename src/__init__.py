@@ -1,5 +1,4 @@
-"""
-ChatGPT Source to Mermaid
+"""ChatGPT Source to Mermaid.
 
 A two-phase Python UML extractor that generates Mermaid class diagrams.
 """

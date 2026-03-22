@@ -1,0 +1,1 @@
+from subpckg_inheritance import dummy_inheritance

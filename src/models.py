@@ -1,9 +1,10 @@
+"""Shared enums and dataclasses used across discovery and rendering."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-
 
 IGNORED_SPECIAL_METHODS = {
     "__repr__",
@@ -44,11 +45,15 @@ EXCLUDED_DIR_NAMES = {
 
 
 class MermaidIdStyle(str, Enum):
+    """Supported Mermaid identifier rendering styles."""
+
     FLAT = "flat"
     ESCAPED = "escaped"
 
 
 class RelationType(str, Enum):
+    """Relationship arrows used in Mermaid class diagrams."""
+
     INHERITANCE = "<|--"
     COMPOSITION = "*--"
     AGGREGATION = "o--"
@@ -58,21 +63,31 @@ class RelationType(str, Enum):
 
 @dataclass(frozen=True)
 class AttributeInfo:
+    """Represents a class or instance attribute for UML rendering."""
+
     name: str
     type_name: str = ""
 
     def render(self) -> str:
+        """Render the attribute as a Mermaid class member line."""
         vis = "-" if self.name.startswith("_") else "+"
-        return f"{vis}{self.name}: {self.type_name}" if self.type_name else f"{vis}{self.name}"
+        return (
+            f"{vis}{self.name}: {self.type_name}"
+            if self.type_name
+            else f"{vis}{self.name}"
+        )
 
 
 @dataclass(frozen=True)
 class MethodInfo:
+    """Represents a method signature for UML rendering."""
+
     name: str
     params: list[tuple[str, str]] = field(default_factory=list)
     return_type: str = ""
 
     def render(self) -> str:
+        """Render the method as a Mermaid class member line."""
         vis = "-" if self.name.startswith("_") else "+"
         sig = ", ".join(f"{n}: {t}" if t else n for n, t in self.params)
         return f"{vis}{self.name}({sig}) {self.return_type}".rstrip()
@@ -80,6 +95,8 @@ class MethodInfo:
 
 @dataclass(frozen=True)
 class Relation:
+    """Represents a semantic relationship between two classes."""
+
     source_fqcn: str
     target_name: str
     relation_type: RelationType
@@ -88,6 +105,8 @@ class Relation:
 
 @dataclass
 class ClassInfo:
+    """Aggregates parsed class metadata used to build diagrams."""
+
     class_id: str
     fqcn: str
     module: str
@@ -103,13 +122,16 @@ class ClassInfo:
 
 @dataclass
 class NamespaceNode:
+    """Tree node used to organize classes by module namespace."""
+
     name: str
     full_name: str
-    children: dict[str, "NamespaceNode"] = field(default_factory=dict)
+    children: dict[str, NamespaceNode] = field(default_factory=dict)
     classes: list[ClassInfo] = field(default_factory=list)
 
 
 def build_namespace_tree(classes: dict[str, ClassInfo]) -> NamespaceNode:
+    """Build a namespace tree from a mapping of fully qualified class names."""
     root = NamespaceNode(name="", full_name="")
 
     for cls in classes.values():
@@ -131,10 +153,12 @@ def build_namespace_tree(classes: dict[str, ClassInfo]) -> NamespaceNode:
 
 
 def should_skip_path(path: Path) -> bool:
+    """Return True when a path contains an excluded directory name."""
     return any(part in EXCLUDED_DIR_NAMES for part in path.parts)
 
 
 def safe_mermaid_id(name: str, style: MermaidIdStyle = MermaidIdStyle.FLAT) -> str:
+    """Convert a class or namespace name into a Mermaid-safe identifier."""
     if style == MermaidIdStyle.ESCAPED:
         escaped = name.replace("`", r"\`")
         return f"`{escaped}`"
@@ -149,4 +173,5 @@ def safe_mermaid_id(name: str, style: MermaidIdStyle = MermaidIdStyle.FLAT) -> s
 
 
 def mermaid_id(name: str, style: str = "flat") -> str:
+    """Map a style string to ``MermaidIdStyle`` and build a safe identifier."""
     return safe_mermaid_id(name, MermaidIdStyle(style))

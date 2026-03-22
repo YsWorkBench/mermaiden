@@ -1,3 +1,5 @@
+"""Inventory file read/write helpers for discovered class metadata."""
+
 from __future__ import annotations
 
 import os
@@ -8,7 +10,10 @@ from models import ClassInfo
 from paths import find_import_root_for_file, normalize_path
 
 
-def write_inventory(classes: Iterable[ClassInfo], output_file: Path, root_dir: Path) -> None:
+def write_inventory(
+    classes: Iterable[ClassInfo], output_file: Path, root_dir: Path
+) -> None:
+    """Write discovered classes to an inventory file."""
     with output_file.open("w", encoding="utf-8") as f:
         f.write(f"# ROOT\t{root_dir}\n")
         f.write("# FQCN\tFILEPATH\tLINENO\tIMPORT_ROOT\n")
@@ -20,6 +25,7 @@ def write_inventory(classes: Iterable[ClassInfo], output_file: Path, root_dir: P
 def read_inventory(
     inventory_file: Path,
 ) -> tuple[Path | None, list[tuple[str, Path, int, Path | None]]]:
+    """Read an inventory file and return root metadata plus parsed rows."""
     inventory_dir = inventory_file.parent.resolve()
     stored_root: Path | None = None
     rows: list[tuple[str, Path, int, Path | None]] = []
@@ -44,7 +50,9 @@ def read_inventory(
                 continue
 
             fqcn, path_text, lineno_text = parts[:3]
-            import_root = normalize_path(parts[3], inventory_dir) if len(parts) == 4 else None
+            import_root = (
+                normalize_path(parts[3], inventory_dir) if len(parts) == 4 else None
+            )
 
             try:
                 lineno = int(lineno_text)
@@ -61,6 +69,7 @@ def read_inventory(
 def guess_root_from_inventory(
     stored_root: Path | None, rows: list[tuple[str, Path, int, Path | None]]
 ) -> Path | None:
+    """Guess a usable source root from inventory content."""
     if stored_root is not None and stored_root.exists():
         return stored_root
 

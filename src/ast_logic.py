@@ -1,3 +1,5 @@
+"""AST helpers for extracting class, method, and type metadata."""
+
 from __future__ import annotations
 
 import ast
@@ -6,6 +8,7 @@ from models import AttributeInfo, IGNORED_SPECIAL_METHODS, MethodInfo
 
 
 def expr_to_name(node: ast.AST | None) -> str:
+    """Convert an AST expression node to a readable type/name string."""
     if node is None:
         return ""
     if isinstance(node, ast.Name):
@@ -31,10 +34,30 @@ def expr_to_name(node: ast.AST | None) -> str:
 
 
 def annotation_to_str(node: ast.AST | None) -> str:
+    """Render a type annotation node as text."""
+    if isinstance(node, ast.Call):
+        base = expr_to_name(node.func)
+        arg_parts = [annotation_to_str(arg) for arg in node.args]
+        kw_parts = []
+        for kw in node.keywords:
+            value = annotation_to_str(kw.value)
+            if not value:
+                continue
+            if kw.arg is None:
+                kw_parts.append(value)
+            else:
+                kw_parts.append(f"{kw.arg}={value}")
+
+        parts = [part for part in [*arg_parts, *kw_parts] if part]
+        if parts and base:
+            return f"{base}[{', '.join(parts)}]"
+        return base
+
     return expr_to_name(node)
 
 
 def infer_type_from_value(node: ast.AST | None) -> str:
+    """Best-effort type inference from a literal or call expression."""
     if node is None:
         return ""
     if isinstance(node, ast.Constant):
@@ -47,16 +70,33 @@ def infer_type_from_value(node: ast.AST | None) -> str:
         return "dict"
     if isinstance(node, ast.Set):
         return "set"
+    if isinstance(node, ast.ListComp):
+        elem_type = infer_type_from_value(node.elt)
+        return f"list[{elem_type}]" if elem_type else "list"
+    if isinstance(node, ast.SetComp):
+        elem_type = infer_type_from_value(node.elt)
+        return f"set[{elem_type}]" if elem_type else "set"
+    if isinstance(node, ast.DictComp):
+        key_type = infer_type_from_value(node.key)
+        value_type = infer_type_from_value(node.value)
+        if key_type and value_type:
+            return f"dict[{key_type}, {value_type}]"
+        return "dict"
+    if isinstance(node, ast.GeneratorExp):
+        elem_type = infer_type_from_value(node.elt)
+        return f"Iterable[{elem_type}]" if elem_type else "Iterable"
     if isinstance(node, ast.Call):
         return expr_to_name(node.func)
     return ""
 
 
 def is_special_method(name: str) -> bool:
+    """Return True when a method name is a Python dunder method."""
     return name.startswith("__") and name.endswith("__")
 
 
 def should_include_method(name: str) -> bool:
+    """Decide whether a method should be shown in UML output."""
     if name == "__init__":
         return False
     if name in IGNORED_SPECIAL_METHODS:
@@ -67,6 +107,7 @@ def should_include_method(name: str) -> bool:
 
 
 def split_type_names(type_name: str) -> set[str]:
+    """Extract potential class names from a composite type string."""
     if not type_name:
         return set()
 
@@ -103,11 +144,17 @@ def split_type_names(type_name: str) -> set[str]:
 
 
 def looks_like_interface(base_name: str) -> bool:
+    """Heuristically detect interface-like base types."""
     short = base_name.split(".")[-1]
-    return short in {"Protocol", "ABC"} or short.endswith("Protocol") or short.endswith("ABC")
+    return (
+        short in {"Protocol", "ABC"}
+        or short.endswith("Protocol")
+        or short.endswith("ABC")
+    )
 
 
 def extract_method_info(node: ast.FunctionDef | ast.AsyncFunctionDef) -> MethodInfo:
+    """Extract method signature information from a function node."""
     params: list[tuple[str, str]] = []
 
     all_args = list(node.args.posonlyargs) + list(node.args.args)
@@ -117,18 +164,23 @@ def extract_method_info(node: ast.FunctionDef | ast.AsyncFunctionDef) -> MethodI
         params.append((arg.arg, annotation_to_str(arg.annotation)))
 
     if node.args.vararg is not None:
-        params.append((f"*{node.args.vararg.arg}", annotation_to_str(node.args.vararg.annotation)))
+        params.append(
+            (f"*{node.args.vararg.arg}", annotation_to_str(node.args.vararg.annotation))
+        )
 
     for arg in node.args.kwonlyargs:
         params.append((arg.arg, annotation_to_str(arg.annotation)))
 
     if node.args.kwarg is not None:
-        params.append((f"**{node.args.kwarg.arg}", annotation_to_str(node.args.kwarg.annotation)))
+        params.append(
+            (f"**{node.args.kwarg.arg}", annotation_to_str(node.args.kwarg.annotation))
+        )
 
     return MethodInfo(node.name, params, annotation_to_str(node.returns))
 
 
 def extract_class_level_attributes(node: ast.ClassDef) -> list[AttributeInfo]:
+    """Extract class-level assignments and annotations as attributes."""
     attrs: dict[str, AttributeInfo] = {}
 
     for item in node.body:
@@ -145,14 +197,18 @@ def extract_class_level_attributes(node: ast.ClassDef) -> list[AttributeInfo]:
 
     return sorted(attrs.values(), key=lambda a: a.name)
 
-
-def extract_init_instance_attributes_types_from_constructor(
+# Not used anymore ?
+def extract_attributes_from_ctor(
     node: ast.ClassDef,
 ) -> list[AttributeInfo]:
+    """Extract ``self`` attributes and inferred types from ``__init__``."""
     attrs: dict[str, AttributeInfo] = {}
 
     for item in node.body:
-        if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) or item.name != "__init__":
+        if (
+            not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+            or item.name != "__init__"
+        ):
             continue
 
         param_types: dict[str, str] = {}
@@ -164,13 +220,17 @@ def extract_init_instance_attributes_types_from_constructor(
             param_types[arg.arg] = annotation_to_str(arg.annotation)
 
         if item.args.vararg is not None:
-            param_types[item.args.vararg.arg] = annotation_to_str(item.args.vararg.annotation)
+            param_types[item.args.vararg.arg] = annotation_to_str(
+                item.args.vararg.annotation
+            )
 
         for arg in item.args.kwonlyargs:
             param_types[arg.arg] = annotation_to_str(arg.annotation)
 
         if item.args.kwarg is not None:
-            param_types[item.args.kwarg.arg] = annotation_to_str(item.args.kwarg.annotation)
+            param_types[item.args.kwarg.arg] = annotation_to_str(
+                item.args.kwarg.annotation
+            )
 
         for sub in ast.walk(item):
             if isinstance(sub, ast.Assign):
@@ -188,7 +248,11 @@ def extract_init_instance_attributes_types_from_constructor(
                         and target.value.id == "self"
                     ):
                         current = attrs.get(target.attr)
-                        chosen_type = current.type_name if current and current.type_name else final_type
+                        chosen_type = (
+                            current.type_name
+                            if current and current.type_name
+                            else final_type
+                        )
                         attrs[target.attr] = AttributeInfo(target.attr, chosen_type)
 
             elif isinstance(sub, ast.AnnAssign):

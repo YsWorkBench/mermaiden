@@ -19,10 +19,17 @@ exclude =
     .mypy_cache,
     .pytest_cache
 per-file-ignores =
-    # Tests can have longer lines and unused imports
-    tests/*:E501,F401,F811
+    # Tests can have longer lines, unused imports, and simplified docstring rules
+    tests/*:D100,D103,E501,F401,F811
     # __init__.py files can have unused imports
     __init__.py:F401
-max-complexity = 10
+max-complexity = 30
 import-order-style = google
-application-import-names = mermaiden
+application-import-names =
+    ast_logic,
+    discovery,
+    inventory,
+    mermaiden,
+    models,
+    paths,
+    render

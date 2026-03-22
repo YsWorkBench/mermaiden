@@ -6,7 +6,7 @@ from html import escape
 from pathlib import Path
 
 from discovery import collect_all_relations
-from models import ClassInfo, NamespaceNode, build_namespace_tree, mermaid_id
+from models import build_namespace_tree, ClassInfo, mermaid_id, NamespaceNode
 
 
 def _format_mermaid_alias(identifier: str, label: str, aliases: bool) -> str:

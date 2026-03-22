@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import argparse
+from typing import Callable, cast
 
-from ast_logic import *
-from discovery import *
-from inventory import *
-from models import *
-from paths import *
-from render import *
+from discovery import discover_classes, rebuild_class_map_from_inventory
+from inventory import write_inventory
+from paths import normalize_path
+from render import write_mermaid_output
 
 
 def cmd_discover(args: argparse.Namespace) -> int:
@@ -135,7 +134,8 @@ def main() -> int:
     """Entry point for the ``mermaiden`` CLI."""
     parser = build_parser()
     args = parser.parse_args()
-    return args.func(args)
+    func = cast(Callable[[argparse.Namespace], int], args.func)
+    return func(args)
 
 
 if __name__ == "__main__":

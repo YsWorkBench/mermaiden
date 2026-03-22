@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from _pytest.capture import CaptureFixture
+
 from inventory import guess_root_from_inventory, read_inventory, write_inventory
 from models import ClassInfo
 
@@ -39,7 +41,9 @@ def test_write_and_read_inventory_roundtrip(tmp_path: Path) -> None:
     assert import_root == root
 
 
-def test_read_inventory_skips_bad_lines(tmp_path: Path, capsys) -> None:
+def test_read_inventory_skips_bad_lines(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
     inv = tmp_path / "bad.txt"
     inv.write_text(
         "# ROOT\t/root\n"

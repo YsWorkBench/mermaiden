@@ -19,9 +19,9 @@ from inventory import guess_root_from_inventory, read_inventory
 from models import (
     AttributeInfo,
     ClassInfo,
+    mermaid_id,
     Relation,
     RelationType,
-    mermaid_id,
     should_skip_path,
 )
 from paths import (
@@ -421,7 +421,7 @@ def _compute_module_name_for_discovery(
 ) -> str:
     """Compute module names for discovery according to namespace mode."""
     if namespace_from_root:
-        return compute_module_name(root_dir, filepath)
+        return str(compute_module_name(root_dir, filepath))
 
     rel = filepath.relative_to(root_dir).with_suffix("")
     parts = list(rel.parts)

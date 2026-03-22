@@ -5,8 +5,8 @@ import ast
 from ast_logic import (
     annotation_to_str,
     expr_to_name,
-    extract_class_level_attributes,
     extract_attributes_from_ctor,
+    extract_class_level_attributes,
     extract_method_info,
     infer_type_from_value,
     looks_like_interface,

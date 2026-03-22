@@ -12,7 +12,7 @@ Indeed, everything in this adventure was assisted by AI, even the logo.
 - [x] **Two-phase extraction**: Discover classes first, then generate diagrams
 - [x] **Recursive scanning**: Analyzes entire Python packages automatically
 - [x] **Namespace-aware**: Respects Python package structure and `__init__.py` files
-- [ ] **Multiple relationship types**: TODO correct the handling of Inheritance, composition, aggregation, and association
+- [x] **Multiple relationship types**: handling of Inheritance, composition, aggregation, association and realization.
 - [x] **Type extraction**: Supports type hints and inferred types
 - [x] **Flexible output**: Generate both Markdown and HTML Mermaid diagrams
 - [x] **Command-line interface**: Easy-to-use CLI with `mermaiden` command
@@ -378,12 +378,6 @@ mermaiden diagram django_classes.txt --output django_uml.md
 # Analyze a FastAPI application
 mermaiden discover ./app --output fastapi_classes.txt
 mermaiden diagram fastapi_classes.txt --output fastapi_uml.html --html-title "FastAPI Architecture"
-```
-
-### Custom Configuration
-```bash
-# Use escaped identifiers for better compatibility
-mermaiden diagram classes.txt --style escaped --namespace nested
 ```
 
 ## Support

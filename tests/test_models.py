@@ -4,11 +4,11 @@ from pathlib import Path
 
 from models import (
     AttributeInfo,
+    build_namespace_tree,
     ClassInfo,
+    mermaid_id,
     MermaidIdStyle,
     MethodInfo,
-    build_namespace_tree,
-    mermaid_id,
     safe_mermaid_id,
     should_skip_path,
 )

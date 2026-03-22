@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 from pathlib import Path
+import shutil
 
 from inventory import read_inventory
 from mermaiden import cmd_diagram, cmd_discover

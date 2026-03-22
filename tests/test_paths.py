@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from _pytest.capture import CaptureFixture
+
 from paths import (
     common_existing_parent,
     compute_module_name,
@@ -49,7 +51,9 @@ def test_compute_module_name_for_init_file(tmp_path: Path) -> None:
     assert compute_module_name_from_packages(init_file) == "myapp"
 
 
-def test_parse_python_file_success_and_failure(tmp_path: Path, capsys) -> None:
+def test_parse_python_file_success_and_failure(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
     good = tmp_path / "ok.py"
     bad = tmp_path / "bad.py"
     good.write_text("x = 1\n", encoding="utf-8")

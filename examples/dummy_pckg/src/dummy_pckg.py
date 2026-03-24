@@ -1,5 +1,9 @@
 #pragma once
-from . import *
+from typing import Optional, List
+
+from subpckg_realisation.subpckg_realisation import dummy_realisation
+from subpckg_association.subpckg_association import dummy_association
+from subpckg_aggregation.subpckg_aggregation import dummy_aggregation
 
 class dummy(dummy_realisation):
 
@@ -12,12 +16,12 @@ class dummy(dummy_realisation):
     def __init__(
         self,
         association: dummy_association,
-        aggregations: tuple(None, list[dummy_aggregation]) = None,
+        aggregations: Optional[List[dummy_aggregation]] = None,
     ):
         super().__init__()
         self.association = association
         self.aggregations = aggregations
-        self.composition = [dummy_composition() for _ in range(5)]
+        self.composition = [dummy.dummy_composition() for _ in range(5)]
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from .subpckg_inheritance import dummy_inheritance
+from subpckg_inheritance.subpckg_inheritance import dummy_inheritance
 
 class dummy_realisation(dummy_inheritance, ABC):
     

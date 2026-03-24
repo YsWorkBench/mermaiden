@@ -86,6 +86,25 @@ def test_discover_classes_collects_non_inheritance_relations(tmp_path: Path) -> 
     assert ("pkg.app.Child", RelationType.COMPOSITION, "pkg.app.Child.Internal") in rels
 
 
+def test_discover_classes_collects_class_level_associations(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "deps.py").write_text("class Service:\n    pass\n", encoding="utf-8")
+    (pkg / "app.py").write_text(
+        "from .deps import Service\n"
+        "class Child:\n"
+        "    service: Service = Service\n",
+        encoding="utf-8",
+    )
+
+    classes = {cls.fqcn: cls for cls in discover_classes(root)}
+    rels = set(collect_all_relations(classes))
+
+    assert ("pkg.deps.Service", RelationType.ASSOCIATION, "pkg.app.Child") in rels
+
+
 def test_discover_classes_follow_init_py_flattens_namespaces(tmp_path: Path) -> None:
     root = tmp_path / "src"
     pkg = root / "pkg"

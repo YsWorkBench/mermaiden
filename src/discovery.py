@@ -47,6 +47,10 @@ class RelationCollector:
         attrs: dict[str, AttributeInfo] = {}
         relations: dict[tuple[str, str, RelationType], Relation] = {}
 
+        for rel in self._collect_class_attribute_associations(current_fqcn):
+            key = (rel.source_fqcn, rel.target_name, rel.relation_type)
+            relations[key] = rel
+
         for item in self.class_node.body:
             if (
                 isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
@@ -346,6 +350,33 @@ class RelationCollector:
                     relations[(rel.source_fqcn, rel.target_name, rel.relation_type)] = (
                         rel
                     )
+
+        return list(relations.values())
+
+    def _collect_class_attribute_associations(
+        self, current_fqcn: str
+    ) -> list[Relation]:
+        """Extract association relations from class-level annotated attributes."""
+        relations: dict[tuple[str, str, RelationType], Relation] = {}
+
+        for item in self.class_node.body:
+            if not (
+                isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)
+            ):
+                continue
+
+            type_name = annotation_to_str(item.annotation)
+            if not type_name:
+                type_name = infer_type_from_value(item.value)
+
+            for dep in split_type_names(type_name):
+                rel = Relation(
+                    current_fqcn,
+                    dep,
+                    RelationType.ASSOCIATION,
+                    "class attribute type annotation",
+                )
+                relations[(rel.source_fqcn, rel.target_name, rel.relation_type)] = rel
 
         return list(relations.values())
 

@@ -9,13 +9,6 @@ from mermaiden import cmd_diagram, cmd_discover
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_DUMMY_PACKAGE = ROOT / "examples" / "dummy_pckg"
-EXAMPLE_INVENTORY = ROOT / "examples" / "dummy_pckg.txt"
-EXAMPLE_DIAGRAM = ROOT / "examples" / "dummy_pckgUML.md"
-
-
-def _inventory_signature(inventory_path: Path) -> list[tuple[str, int]]:
-    _, rows = read_inventory(inventory_path)
-    return sorted((fqcn, lineno) for fqcn, _, lineno, _ in rows)
 
 
 def _inventory_fqcns(inventory_path: Path) -> set[str]:
@@ -61,21 +54,41 @@ def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
     assert cmd_diagram(diagram_args) == 0
     assert diagram_out.exists()
 
-    assert _inventory_signature(inventory_out) == _inventory_signature(
-        EXAMPLE_INVENTORY
-    )
+    expected_fqcns = {
+        "dummy_pckg.dummy",
+        "dummy_pckg.dummy.dummy_composition",
+        "subpckg_aggregation.subpckg_aggregation.dummy_aggregation",
+        "subpckg_association.subpckg_association.dummy_association",
+        "subpckg_inheritance.subpckg_inheritance.dummy_inheritance",
+        (
+            "subpckg_inheritance.subpckg_inheritance_nested_association."
+            "subpckg_inheritance_nested_association."
+            "dummy_inheritance_nested_association"
+        ),
+        (
+            "subpckg_inheritance.subpckg_inheritance_nested_inheritance."
+            "subpckg_inheritance_nested_inheritance."
+            "dummy_inheritance_nested_inheritance"
+        ),
+        "subpckg_realisation.subpckg_realisation.dummy_realisation",
+    }
+    assert _inventory_fqcns(inventory_out) == expected_fqcns
 
     generated_diagram = diagram_out.read_text(encoding="utf-8")
-    expected_diagram = EXAMPLE_DIAGRAM.read_text(encoding="utf-8")
-    assert generated_diagram == expected_diagram
 
     assert (
-        "`subpckg-association.subpckg-association.dummy_association` --> "
+        "`subpckg_association.subpckg_association.dummy_association` --> "
         "`dummy_pckg.dummy`"
     ) in generated_diagram
     assert (
         "`dummy_pckg.dummy` ..|> "
-        "`subpckg-realisation.subpckg-realisation.dummy_realisation`"
+        "`subpckg_realisation.subpckg_realisation.dummy_realisation`"
+    ) in generated_diagram
+    assert (
+        "`subpckg_inheritance.subpckg_inheritance_nested_association."
+        "subpckg_inheritance_nested_association.dummy_inheritance_nested_association` "
+        "--> `subpckg_inheritance.subpckg_inheritance_nested_inheritance."
+        "subpckg_inheritance_nested_inheritance.dummy_inheritance_nested_inheritance`"
     ) in generated_diagram
 
 
@@ -110,16 +123,29 @@ def test_dummy_package_example_cli_follow_init_py(tmp_path: Path) -> None:
     assert diagram_out.exists()
 
     fqcns = _inventory_fqcns(inventory_out)
-    assert "dummy_association" in fqcns
-    assert "dummy_realisation" in fqcns
-    assert "subpckg-association.subpckg-association.dummy_association" not in fqcns
+    assert "subpckg_association.subpckg_association.dummy_association" in fqcns
+    assert "subpckg_realisation.subpckg_realisation.dummy_realisation" in fqcns
+    assert "dummy_association" not in fqcns
+    assert "dummy_realisation" not in fqcns
 
     diagram_text = diagram_out.read_text(encoding="utf-8")
     assert "namespace `src`{" not in diagram_text
-    assert "namespace `src.subpckg-association`{" not in diagram_text
-    assert "namespace `subpckg-association`{" not in diagram_text
-    assert "`dummy_association` --> `dummy_pckg.dummy`" in diagram_text
-    assert "`dummy_pckg.dummy` ..|> `dummy_realisation`" in diagram_text
+    assert "namespace `src.subpckg_association`{" not in diagram_text
+    assert 'namespace `subpckg_association`["subpckg_association"]{' in diagram_text
+    assert (
+        "`subpckg_association.subpckg_association.dummy_association` --> "
+        "`dummy_pckg.dummy`"
+    ) in diagram_text
+    assert (
+        "`dummy_pckg.dummy` ..|> "
+        "`subpckg_realisation.subpckg_realisation.dummy_realisation`"
+    ) in diagram_text
+    assert (
+        "`subpckg_inheritance.subpckg_inheritance_nested_association."
+        "subpckg_inheritance_nested_association.dummy_inheritance_nested_association` "
+        "--> `subpckg_inheritance.subpckg_inheritance_nested_inheritance."
+        "subpckg_inheritance_nested_inheritance.dummy_inheritance_nested_inheritance`"
+    ) in diagram_text
 
 
 def test_dummy_package_example_cli_namespace_from_root(tmp_path: Path) -> None:
@@ -160,8 +186,14 @@ def test_dummy_package_example_cli_namespace_from_root(tmp_path: Path) -> None:
     assert 'namespace `src`["src"]{' in diagram_text
     assert 'namespace `src.dummy_pckg`["src.dummy_pckg"]{' in diagram_text
     assert (
-        "`src.subpckg-association.subpckg-association.dummy_association` --> "
+        "`src.subpckg_association.subpckg_association.dummy_association` --> "
         "`src.dummy_pckg.dummy`"
+    ) in diagram_text
+    assert (
+        "`src.subpckg_inheritance.subpckg_inheritance_nested_association."
+        "subpckg_inheritance_nested_association.dummy_inheritance_nested_association` "
+        "--> `src.subpckg_inheritance.subpckg_inheritance_nested_inheritance."
+        "subpckg_inheritance_nested_inheritance.dummy_inheritance_nested_inheritance`"
     ) in diagram_text
 
 

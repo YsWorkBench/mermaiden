@@ -17,6 +17,7 @@ Indeed, everything in this adventure was assisted by AI, even the logo.
 - [x] **Flexible output**: Generate both Markdown and HTML Mermaid diagrams
 - [x] **Command-line interface**: Easy-to-use CLI with `mermaiden` command with the `mermaider diagram --filters` that accepts a list of regex patterns to filter classes/modules.
 - [x] **Inverted mermaiden**: Created the `mermaiden generate` tool to create the python package skeleton from Mermaid diagram.
+- [ ] **TODO pypi**: look what it needs to publish a package on pypi.
 
 ## Compatibility
 
@@ -29,6 +30,16 @@ info
 ```
 
 ## Installation
+
+### From Github
+
+```bash
+# Using pip
+pip install git+https://github.com/YsWorkBench/mermaiden.git
+
+# Or using uv (recommended)
+uv add git+https://github.com/YsWorkBench/mermaiden.git
+```
 
 ### From Source
 

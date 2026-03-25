@@ -17,11 +17,13 @@ from models import (
 def test_attribute_and_method_render_visibility() -> None:
     public_attr = AttributeInfo("name", "str")
     private_attr = AttributeInfo("_token")
+    private_suffix_attr = AttributeInfo("token_", "str")
     method = MethodInfo("do_work", [("x", "int"), ("y", "")], "bool")
     private_method = MethodInfo("_helper", [], "")
 
     assert public_attr.render() == "+name: str"
     assert private_attr.render() == "-_token"
+    assert private_suffix_attr.render() == "-token_: str"
     assert method.render() == "+do_work(x: int, y) bool"
     assert private_method.render() == "-_helper()"
 

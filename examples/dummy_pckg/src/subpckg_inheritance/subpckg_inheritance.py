@@ -1,2 +1,11 @@
+from pydantic import Field
+from pydantic.dataclasses import dataclass
+
+
+@dataclass
 class dummy_inheritance:
-    pass
+    identifier: int = Field(
+        default=0,
+        ge=0,
+        description="Base inheritance identifier",
+    )

@@ -70,7 +70,7 @@ class AttributeInfo:
 
     def render(self) -> str:
         """Render the attribute as a Mermaid class member line."""
-        vis = "-" if self.name.startswith("_") else "+"
+        vis = "-" if self.name.startswith("_") or self.name.endswith("_") else "+"
         return (
             f"{vis}{self.name}: {self.type_name}"
             if self.type_name

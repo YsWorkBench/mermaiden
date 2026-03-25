@@ -15,7 +15,7 @@ Indeed, everything in this adventure was assisted by AI, even the logo.
 - [x] **Multiple relationship types**: handling of Inheritance, composition, aggregation, association and realization.
 - [x] **Type extraction**: Supports type hints and inferred types
 - [x] **Flexible output**: Generate both Markdown and HTML Mermaid diagrams
-- [x] **Command-line interface**: Easy-to-use CLI with `mermaiden` command
+- [x] **Command-line interface**: Easy-to-use CLI with `mermaiden` command with the `mermaider diagram --filters` that accepts a list of regex patterns to filter classes/modules.
 - [ ] **TODO invert mermaiden**: Create a tool to generate Python packages from Mermaid diagrams
 
 ## Compatibility
@@ -114,6 +114,12 @@ mermaiden diagram classes.txt --style flat
 # Toggle aliases for classes and namespaces
 mermaiden diagram classes.txt --aliases
 
+# Filter included classes/modules with regex (matches class name, qualname, module, or FQCN)
+mermaiden diagram classes.txt --filters '^pkg\.service' 'Controller$'
+
+# Explicitly pass an empty filter list (equivalent to no filtering)
+mermaiden diagram classes.txt --filters
+
 # Custom titles
 mermaiden diagram classes.txt --markdown-title "My Project UML" --html-title "My Project Diagram"
 ```
@@ -211,6 +217,17 @@ class `dummy_pckg.dummy.dummy_composition` {
 namespace `dummy_pckg`{
   ...
 }
+```
+
++ `--filters`
+  + optional list of regex patterns to keep only matching classes in the diagram output.
+  + each class is tested against: class name, qualname, module, and FQCN.
+  + if at least one regex matches, the class is included.
+  + passing `--filters` with no values gives an empty list and behaves like no filtering.
+
+```bash
+# Keep classes whose fqcn/module/name matches either regex
+mermaiden diagram classes.txt --filters '^myapp\.domain' 'Service$'
 ```
 
 So this package wishes to be able to use all the new functionalities of Mermaid in future stable versions while being compatible with older versions.

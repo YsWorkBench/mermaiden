@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import re
 from typing import Callable, cast
 
 from discovery import discover_classes, rebuild_class_map_from_inventory
 from inventory import write_inventory
+from models import ClassInfo
 from paths import normalize_path
 from render import write_mermaid_output
 
@@ -40,6 +42,7 @@ def cmd_diagram(args: argparse.Namespace) -> int:
     inventory_file = normalize_path(args.inventory)
     output_file = normalize_path(args.output)
     aliases = getattr(args, "aliases", False)
+    filters = getattr(args, "filters", None)
 
     if not inventory_file.exists():
         print(f"[ERROR] Inventory file not found: {inventory_file}")
@@ -49,6 +52,27 @@ def cmd_diagram(args: argparse.Namespace) -> int:
     if not classes:
         print("[ERROR] No classes could be rebuilt from inventory")
         return 1
+
+    if filters:
+        compiled_filters: list[re.Pattern[str]] = []
+        for pattern in filters:
+            try:
+                compiled_filters.append(re.compile(pattern))
+            except re.error as exc:
+                print(f"[ERROR] Invalid regex in --filters: {pattern!r} ({exc})")
+                return 1
+
+        def _matches_filters(cls: ClassInfo) -> bool:
+            searchable = (cls.name, cls.qualname, cls.module, cls.fqcn)
+            return any(
+                compiled.search(candidate)
+                for compiled in compiled_filters
+                for candidate in searchable
+            )
+
+        classes = {fqcn: cls for fqcn, cls in classes.items() if _matches_filters(cls)}
+        if not classes:
+            print("[WARN] No classes matched --filters; writing empty diagram.")
 
     write_mermaid_output(
         classes,
@@ -115,6 +139,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--aliases",
         action="store_true",
         help="Whether Mermaid aliases are emitted for classes and namespaces",
+    )
+    p2.add_argument(
+        "--filters",
+        nargs="*",
+        default=None,
+        metavar="REGEX",
+        help=(
+            "Optional regex list to include classes/modules in diagram. "
+            "A class is kept when any regex matches its class name, qualname, module, or FQCN."
+        ),
     )
     p2.add_argument(
         "--markdown-title",

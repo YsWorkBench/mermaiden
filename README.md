@@ -16,7 +16,7 @@ Indeed, everything in this adventure was assisted by AI, even the logo.
 - [x] **Type extraction**: Supports type hints and inferred types
 - [x] **Flexible output**: Generate both Markdown and HTML Mermaid diagrams
 - [x] **Command-line interface**: Easy-to-use CLI with `mermaiden` command with the `mermaider diagram --filters` that accepts a list of regex patterns to filter classes/modules.
-- [ ] **TODO invert mermaiden**: Create a tool to generate Python packages from Mermaid diagrams
+- [x] **Inverted mermaiden**: Created the `mermaiden generate` tool to create the python package skeleton from Mermaid diagram.
 
 ## Compatibility
 

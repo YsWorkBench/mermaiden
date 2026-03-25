@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "chatgpt-src-to-mermaid"
+name = "mermaiden"
 version = "0.1.0"
 description = "Two-phase Python UML extractor that generates Mermaid class diagrams"
 readme = "README.md"
@@ -55,7 +55,7 @@ Repository = "https://github.com/YsWorkBench/chatGPT-src-to-mermaid"
 Issues = "https://github.com/YsWorkBench/chatGPT-src-to-mermaid.git"
 
 [project.scripts]
-mermaiden = "mermaiden:main"
+mermaiden = "src/mermaiden:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

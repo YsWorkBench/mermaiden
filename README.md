@@ -92,9 +92,6 @@ The different columns are:
 ```bash
 # Phase 2: Generate Mermaid UML diagram from inventory
 mermaiden diagram classes.txt --output UMLdiagram.md
-
-# Reverse phase: Generate Python scaffold from Mermaid UML markdown/html
-mermaiden generate UMLdiagram.md --output generated_src
 ```
 
 Which generates a Markdown file `UMLdiagram.md` with the following [content](examples/ctypesUML.md) for the `ctypes` module:

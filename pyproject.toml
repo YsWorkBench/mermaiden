@@ -57,8 +57,17 @@ Issues = "https://github.com/YsWorkBench/chatGPT-src-to-mermaid.git"
 [project.scripts]
 mermaiden = "mermaiden:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+py-modules = [
+    "ast_logic",
+    "discovery",
+    "generate",
+    "inventory",
+    "mermaiden",
+    "models",
+    "paths",
+    "render",
+]
 
 [tool.setuptools.package-dir]
 "" = "src"

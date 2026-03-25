@@ -55,7 +55,7 @@ Repository = "https://github.com/YsWorkBench/chatGPT-src-to-mermaid"
 Issues = "https://github.com/YsWorkBench/chatGPT-src-to-mermaid.git"
 
 [project.scripts]
-mermaiden = "src/mermaiden:main"
+mermaiden = "mermaiden:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

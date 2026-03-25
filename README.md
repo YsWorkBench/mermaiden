@@ -97,8 +97,8 @@ The different columns are:
 - `LINENO`: Line number where the class is defined
 - `IMPORT_ROOT`: Root directory for imports
 
-> [!NOTE] TODO
-> Check the `IMPORT_ROOT` usage, which is the root directory for imports, and might be unnecessary as the `FILEPATH` already contains the full path.
+> [!NOTE]
+> **TODO** Check the `IMPORT_ROOT` usage, which is the root directory for imports, and might be unnecessary as the `FILEPATH` already contains the full path.
 
 ```bash
 # Phase 2: Generate Mermaid UML diagram from inventory

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 
 from inventory import read_inventory
-from mermaiden import cmd_diagram, cmd_discover
+from mermaiden import cmd_diagram, cmd_discover, cmd_generate
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_DUMMY_PACKAGE = ROOT / "examples" / "dummy_pckg"
+EXAMPLE_DUMMY_DIAGRAM = ROOT / "examples" / "dummy_pckgUML.md"
+PERSISTED_RECREATED_DUMMY_PACKAGE = (
+    ROOT / "examples" / "generated_dummy_pckg_inspect_once"
+)
 
 
 def _inventory_fqcns(inventory_path: Path) -> set[str]:
@@ -18,7 +23,31 @@ def _inventory_fqcns(inventory_path: Path) -> set[str]:
     return {fqcn for fqcn, _, _, _ in rows}
 
 
+def _ensure_example_dummy_package_exists() -> None:
+    if EXAMPLE_DUMMY_PACKAGE.exists():
+        return
+
+    assert EXAMPLE_DUMMY_DIAGRAM.exists(), (
+        "Missing both examples/dummy_pckg and examples/dummy_pckgUML.md; "
+        "cannot recreate dummy package fixture."
+    )
+
+    source_root = EXAMPLE_DUMMY_PACKAGE / "src"
+    source_root.mkdir(parents=True, exist_ok=True)
+    recreate_args = argparse.Namespace(
+        diagram=str(EXAMPLE_DUMMY_DIAGRAM),
+        output=str(source_root),
+    )
+    assert cmd_generate(recreate_args) == 0
+    assert (source_root / "dummy_pckg.py").exists()
+
+
+def _relative_files(root: Path) -> set[str]:
+    return {str(path.relative_to(root)) for path in root.rglob("*") if path.is_file()}
+
+
 def test_dummy_package_main_instantiates_all_objects(tmp_path: Path) -> None:
+    _ensure_example_dummy_package_exists()
     copied_package = tmp_path / "dummy_pckg"
     shutil.copytree(EXAMPLE_DUMMY_PACKAGE, copied_package)
     source_root = copied_package / "src"
@@ -38,6 +67,7 @@ def test_dummy_package_main_instantiates_all_objects(tmp_path: Path) -> None:
 
 
 def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
+    _ensure_example_dummy_package_exists()
     copied_package = tmp_path / "dummy_pckg"
     shutil.copytree(EXAMPLE_DUMMY_PACKAGE, copied_package)
 
@@ -116,6 +146,7 @@ def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
 
 
 def test_dummy_package_example_cli_follow_init_py(tmp_path: Path) -> None:
+    _ensure_example_dummy_package_exists()
     copied_package = tmp_path / "dummy_pckg"
     shutil.copytree(EXAMPLE_DUMMY_PACKAGE, copied_package)
 
@@ -170,6 +201,7 @@ def test_dummy_package_example_cli_follow_init_py(tmp_path: Path) -> None:
 
 
 def test_dummy_package_example_cli_namespace_from_root(tmp_path: Path) -> None:
+    _ensure_example_dummy_package_exists()
     copied_package = tmp_path / "dummy_pckg"
     shutil.copytree(EXAMPLE_DUMMY_PACKAGE, copied_package)
 
@@ -219,6 +251,7 @@ def test_dummy_package_example_cli_namespace_from_root(tmp_path: Path) -> None:
 
 
 def test_dummy_package_example_cli_aliases_off(tmp_path: Path) -> None:
+    _ensure_example_dummy_package_exists()
     copied_package = tmp_path / "dummy_pckg"
     shutil.copytree(EXAMPLE_DUMMY_PACKAGE, copied_package)
 
@@ -256,3 +289,132 @@ def test_dummy_package_example_cli_aliases_off(tmp_path: Path) -> None:
         'class `dummy_pckg.dummy.dummy_composition`["dummy.dummy_composition"]'
         not in diagram_text
     )
+
+
+def test_dummy_package_generate_recreates_structure_from_markdown_and_html(
+    tmp_path: Path,
+) -> None:
+    _ensure_example_dummy_package_exists()
+    copied_package = tmp_path / "dummy_pckg"
+    shutil.copytree(EXAMPLE_DUMMY_PACKAGE, copied_package)
+
+    source_root = copied_package / "src"
+    inventory_out = tmp_path / "dummy_pckg.txt"
+    diagram_md = tmp_path / "dummy_pckgUML.md"
+    diagram_html = tmp_path / "dummy_pckgUML.html"
+    generated_md_root = tmp_path / "generated_from_md"
+    generated_html_root = tmp_path / "generated_from_html"
+
+    discover_args = argparse.Namespace(
+        root=str(source_root),
+        output=str(inventory_out),
+        style="escaped",
+        follow="path",
+        namespace_from_root=False,
+    )
+    diagram_md_args = argparse.Namespace(
+        inventory=str(inventory_out),
+        output=str(diagram_md),
+        namespace="nested",
+        style="escaped",
+        aliases=True,
+        html_title="HTML UML Class Diagram",
+        markdown_title="Mardown UML Class Diagram",
+    )
+    diagram_html_args = argparse.Namespace(
+        inventory=str(inventory_out),
+        output=str(diagram_html),
+        namespace="nested",
+        style="escaped",
+        aliases=True,
+        html_title="HTML UML Class Diagram",
+        markdown_title="Mardown UML Class Diagram",
+    )
+
+    assert cmd_discover(discover_args) == 0
+    assert cmd_diagram(diagram_md_args) == 0
+    assert cmd_diagram(diagram_html_args) == 0
+
+    generate_md_args = argparse.Namespace(
+        diagram=str(diagram_md),
+        output=str(generated_md_root),
+    )
+    generate_html_args = argparse.Namespace(
+        diagram=str(diagram_html),
+        output=str(generated_html_root),
+    )
+    assert cmd_generate(generate_md_args) == 0
+    assert cmd_generate(generate_html_args) == 0
+
+    # Keep one recreated tree on disk for manual inspection if it does not exist yet.
+    if not PERSISTED_RECREATED_DUMMY_PACKAGE.exists():
+        shutil.copytree(generated_md_root, PERSISTED_RECREATED_DUMMY_PACKAGE)
+
+    expected_files = {
+        "dummy_pckg.py",
+        "subpckg_aggregation/__init__.py",
+        "subpckg_aggregation/subpckg_aggregation.py",
+        "subpckg_association/__init__.py",
+        "subpckg_association/subpckg_association.py",
+        "subpckg_inheritance/__init__.py",
+        "subpckg_inheritance/subpckg_inheritance.py",
+        "subpckg_inheritance/subpckg_inheritance_nested_association/__init__.py",
+        (
+            "subpckg_inheritance/subpckg_inheritance_nested_association/"
+            "subpckg_inheritance_nested_association.py"
+        ),
+        "subpckg_inheritance/subpckg_inheritance_nested_inheritance/__init__.py",
+        (
+            "subpckg_inheritance/subpckg_inheritance_nested_inheritance/"
+            "subpckg_inheritance_nested_inheritance.py"
+        ),
+        "subpckg_realisation/__init__.py",
+        "subpckg_realisation/subpckg_realisation.py",
+    }
+
+    md_files = _relative_files(generated_md_root)
+    html_files = _relative_files(generated_html_root)
+    assert md_files == expected_files
+    assert html_files == expected_files
+
+    for relpath in sorted(expected_files):
+        md_file = generated_md_root / relpath
+        html_file = generated_html_root / relpath
+        md_text = md_file.read_text(encoding="utf-8")
+        html_text = html_file.read_text(encoding="utf-8")
+        assert md_text == html_text
+        if md_file.suffix == ".py":
+            ast.parse(md_text)
+
+    generated_dummy = (generated_md_root / "dummy_pckg.py").read_text(encoding="utf-8")
+    assert "class dummy(dummy_realisation):" in generated_dummy
+    assert "inheritance_link: Optional[dummy_inheritance_nested_inheritance]" in (
+        generated_dummy
+    )
+    assert "def MyABC(self) -> str:" in generated_dummy
+
+    generated_realisation = (
+        generated_md_root / "subpckg_realisation" / "subpckg_realisation.py"
+    ).read_text(encoding="utf-8")
+    assert "class dummy_realisation(dummy_inheritance):" in generated_realisation
+    assert "def MyABC(self) -> str:" in generated_realisation
+
+    generated_nested_inheritance = (
+        generated_md_root
+        / "subpckg_inheritance"
+        / "subpckg_inheritance_nested_inheritance"
+        / "subpckg_inheritance_nested_inheritance.py"
+    ).read_text(encoding="utf-8")
+    assert (
+        "from subpckg_inheritance.subpckg_inheritance import dummy_inheritance"
+        in generated_nested_inheritance
+    )
+    assert (
+        "from subpckg_inheritance.subpckg_inheritance_nested_association."
+        "subpckg_inheritance_nested_association import "
+        "dummy_inheritance_nested_association"
+    ) in generated_nested_inheritance
+    assert "class dummy_inheritance_nested_inheritance(dummy_inheritance):" in (
+        generated_nested_inheritance
+    )
+    assert "link: dummy_inheritance_nested_association" in generated_nested_inheritance

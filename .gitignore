@@ -187,3 +187,6 @@ Thumbs.db
 
 # Package managers
 uv.lock
+
+# Local inspection artifacts produced by integration tests
+examples/generated_dummy_pckg_inspect_once/

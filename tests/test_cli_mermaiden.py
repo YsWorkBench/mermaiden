@@ -4,7 +4,7 @@ import argparse
 import ast
 from pathlib import Path
 
-from mermaiden import build_parser, cmd_diagram, cmd_discover
+from mermaiden import build_parser, cmd_diagram, cmd_discover, cmd_generate
 
 
 def test_mermaiden_module_is_parseable() -> None:
@@ -23,6 +23,10 @@ def test_build_parser_from_cli_namespace() -> None:
     diagram_filters_values = parser.parse_args(
         ["diagram", "classes.txt", "--filters", "A$", r"pkg\.mod"]
     )
+    generate_args = parser.parse_args(["generate", "diagram.md"])
+    generate_custom_output = parser.parse_args(
+        ["generate", "diagram.html", "--output", "generated_pkg"]
+    )
 
     assert args.command == "discover"
     assert args.style in {"flat", "escaped"}
@@ -35,6 +39,10 @@ def test_build_parser_from_cli_namespace() -> None:
     assert diagram_aliases_default.filters is None
     assert diagram_filters_empty.filters == []
     assert diagram_filters_values.filters == ["A$", r"pkg\.mod"]
+    assert generate_args.command == "generate"
+    assert generate_args.diagram == "diagram.md"
+    assert generate_args.output == "generated_src"
+    assert generate_custom_output.output == "generated_pkg"
 
 
 def test_cmd_discover_and_cmd_diagram_work_end_to_end(tmp_path: Path) -> None:
@@ -122,3 +130,58 @@ def test_cmd_diagram_filters_classname_and_module(tmp_path: Path) -> None:
     text_by_module = out_by_module.read_text(encoding="utf-8")
     assert "class `pkg.b.Drop`" in text_by_module
     assert "class `pkg.a.Keep`" not in text_by_module
+
+
+def test_cmd_generate_from_markdown_and_html(tmp_path: Path) -> None:
+    mermaid_source = (
+        "classDiagram\n"
+        "class `pkg.base.Base` {\n"
+        "  +identifier: int\n"
+        "}\n"
+        "class `pkg.app.Service` {\n"
+        "  +dependency: Base\n"
+        "  +run() None\n"
+        "}\n"
+        "`pkg.base.Base` <|-- `pkg.app.Service`\n"
+    )
+
+    md_diagram = tmp_path / "diagram.md"
+    md_diagram.write_text(
+        "# UML\n\n```mermaid\n" + mermaid_source + "```\n",
+        encoding="utf-8",
+    )
+    md_output = tmp_path / "generated_from_md"
+    generate_md_args = argparse.Namespace(
+        diagram=str(md_diagram),
+        output=str(md_output),
+    )
+    assert cmd_generate(generate_md_args) == 0
+
+    base_py = md_output / "pkg" / "base.py"
+    app_py = md_output / "pkg" / "app.py"
+    assert (md_output / "pkg" / "__init__.py").exists()
+    assert base_py.exists()
+    assert app_py.exists()
+    assert "class Base:" in base_py.read_text(encoding="utf-8")
+    app_text = app_py.read_text(encoding="utf-8")
+    assert "from pkg.base import Base" in app_text
+    assert "class Service(Base):" in app_text
+    assert "dependency: Base" in app_text
+    assert "def run(self) -> None:" in app_text
+
+    html_diagram = tmp_path / "diagram.html"
+    html_diagram.write_text(
+        '<!doctype html><html><body><pre class="mermaid">'
+        + "classDiagram\nclass `pkg.alpha.Alpha` {\n}\n"
+        + "</pre></body></html>",
+        encoding="utf-8",
+    )
+    html_output = tmp_path / "generated_from_html"
+    generate_html_args = argparse.Namespace(
+        diagram=str(html_diagram),
+        output=str(html_output),
+    )
+    assert cmd_generate(generate_html_args) == 0
+    alpha_py = html_output / "pkg" / "alpha.py"
+    assert alpha_py.exists()
+    assert "class Alpha:" in alpha_py.read_text(encoding="utf-8")

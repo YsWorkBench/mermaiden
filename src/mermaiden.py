@@ -7,6 +7,7 @@ import re
 from typing import Callable, cast
 
 from discovery import discover_classes, rebuild_class_map_from_inventory
+from generate import generate_codebase_from_diagram
 from inventory import write_inventory
 from models import ClassInfo
 from paths import normalize_path
@@ -88,6 +89,29 @@ def cmd_diagram(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_generate(args: argparse.Namespace) -> int:
+    """Run the ``generate`` CLI command."""
+    diagram_file = normalize_path(args.diagram)
+    output_dir = normalize_path(args.output)
+
+    if not diagram_file.exists() or not diagram_file.is_file():
+        print(f"[ERROR] Diagram file not found: {diagram_file}")
+        return 1
+
+    try:
+        class_count, module_count = generate_codebase_from_diagram(
+            diagram_file=diagram_file,
+            output_dir=output_dir,
+        )
+    except ValueError as exc:
+        print(f"[ERROR] {exc}")
+        return 1
+
+    print(f"[OK] Generated {class_count} classes across {module_count} modules")
+    print(f"[OK] Codebase scaffold written to: {output_dir}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -161,6 +185,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="HTML UML Class Diagram",
         help="Document title for HTML output",
     )
+
+    p3 = subparsers.add_parser(
+        "generate",
+        help="Generate default Python codebase from Mermaid UML markdown/html",
+    )
+    p3.add_argument("diagram", help="Input diagram file (.md or .html)")
+    p3.add_argument(
+        "--output",
+        default="generated_src",
+        help="Output directory for generated Python scaffold",
+    )
+    p3.set_defaults(func=cmd_generate)
     return parser
 
 

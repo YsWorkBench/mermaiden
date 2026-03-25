@@ -28,6 +28,7 @@ import-order-style = google
 application-import-names =
     ast_logic,
     discovery,
+    generate,
     inventory,
     mermaiden,
     models,

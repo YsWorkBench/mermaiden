@@ -92,6 +92,9 @@ The different columns are:
 ```bash
 # Phase 2: Generate Mermaid UML diagram from inventory
 mermaiden diagram classes.txt --output UMLdiagram.md
+
+# Reverse phase: Generate Python scaffold from Mermaid UML markdown/html
+mermaiden generate UMLdiagram.md --output generated_src
 ```
 
 Which generates a Markdown file `UMLdiagram.md` with the following [content](examples/ctypesUML.md) for the `ctypes` module:
@@ -123,6 +126,27 @@ mermaiden diagram classes.txt --filters
 # Custom titles
 mermaiden diagram classes.txt --markdown-title "My Project UML" --html-title "My Project Diagram"
 ```
+
+### Reverse Generation
+
+You can invert the process and generate a default Python package structure from Mermaid UML diagrams:
+
+```bash
+# Generate scaffold from Markdown diagram
+mermaiden generate UMLdiagram.md --output generated_src
+
+# Generate scaffold from HTML diagram
+mermaiden generate UMLdiagram.html --output generated_src
+```
+
+The `generate` command parses Mermaid `classDiagram` source from:
+- Markdown fenced Mermaid blocks (` ```mermaid ... ``` `)
+- HTML `<pre class="mermaid">...</pre>` blocks
+
+It then creates a default module/package structure with:
+- `__init__.py` package files
+- Class stubs
+- Best-effort inheritance and relation-based attributes inferred from the UML
 
 ### Python API
 

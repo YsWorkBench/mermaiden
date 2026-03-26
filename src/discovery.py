@@ -13,6 +13,7 @@ from ast_logic import (
     infer_type_from_value,
     looks_like_interface,
     should_include_method,
+    should_skip_pydantic_internal_attribute,
     split_type_names,
 )
 from inventory import guess_root_from_inventory, read_inventory
@@ -368,6 +369,8 @@ class RelationCollector:
             type_name = annotation_to_str(item.annotation)
             if not type_name:
                 type_name = infer_type_from_value(item.value)
+            if should_skip_pydantic_internal_attribute(item.target.id, type_name):
+                continue
 
             for dep in split_type_names(type_name):
                 rel = Relation(

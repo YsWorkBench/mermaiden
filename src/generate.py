@@ -98,7 +98,7 @@ def extract_mermaid_source(diagram_file: Path) -> str:
                 return source
         raise ValueError("No Mermaid classDiagram block found in markdown file.")
 
-    if suffix == ".html":
+    if suffix in {".html", ".htm"}:
         html_match = _HTML_MERMAID_BLOCK_RE.search(text)
         if not html_match:
             raise ValueError('No Mermaid <pre class="mermaid"> block found in html.')
@@ -107,7 +107,7 @@ def extract_mermaid_source(diagram_file: Path) -> str:
             raise ValueError("No classDiagram found inside html Mermaid block.")
         return source
 
-    raise ValueError("Unsupported diagram extension. Use .md or .html")
+    raise ValueError("Unsupported diagram extension. Use .md, .html, or .htm")
 
 
 def _build_fqcn(class_id: str, label: str | None, module: str) -> str:

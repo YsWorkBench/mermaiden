@@ -19,6 +19,27 @@ def test_build_parser_from_cli_namespace() -> None:
     args_from_root = parser.parse_args(["discover", "./src", "--namespace-from-root"])
     diagram_aliases_default = parser.parse_args(["diagram", "classes.txt"])
     diagram_aliases_on = parser.parse_args(["diagram", "classes.txt", "--aliases"])
+    diagram_title = parser.parse_args(["diagram", "classes.txt", "--title", "My UML"])
+    diagram_output_alias = parser.parse_args(
+        ["diagram", "classes.txt", "--ouput", "diagram.HTM"]
+    )
+    diagram_namespace_none = parser.parse_args(
+        ["diagram", "classes.txt", "--namespace", "None"]
+    )
+    diagram_recursive_attributes = parser.parse_args(
+        ["diagram", "classes.txt", "--recursive-attributes"]
+    )
+    diagram_isolate_default = parser.parse_args(["diagram", "classes.txt"])
+    diagram_isolate_args = parser.parse_args(
+        [
+            "diagram",
+            "classes.txt",
+            "--isolate-class",
+            "pkg.chain.B",
+            "--isolate-distance",
+            "2",
+        ]
+    )
     diagram_filters_empty = parser.parse_args(["diagram", "classes.txt", "--filters"])
     diagram_filters_values = parser.parse_args(
         ["diagram", "classes.txt", "--filters", "A$", r"pkg\.mod"]
@@ -36,6 +57,16 @@ def test_build_parser_from_cli_namespace() -> None:
     assert args_from_root.namespace_from_root is True
     assert diagram_aliases_default.aliases is False
     assert diagram_aliases_on.aliases is True
+    assert diagram_aliases_default.title == "UML Class Diagram"
+    assert diagram_title.title == "My UML"
+    assert diagram_output_alias.output == "diagram.HTM"
+    assert diagram_namespace_none.namespace == "none"
+    assert diagram_aliases_default.recursive_attributes is False
+    assert diagram_recursive_attributes.recursive_attributes is True
+    assert diagram_isolate_default.isolate_class is None
+    assert diagram_isolate_default.isolate_distance == 1
+    assert diagram_isolate_args.isolate_class == "pkg.chain.B"
+    assert diagram_isolate_args.isolate_distance == 2
     assert diagram_aliases_default.filters is None
     assert diagram_filters_empty.filters == []
     assert diagram_filters_values.filters == ["A$", r"pkg\.mod"]
@@ -53,7 +84,7 @@ def test_cmd_discover_and_cmd_diagram_work_end_to_end(tmp_path: Path) -> None:
     (pkg / "x.py").write_text("class A:\n    pass\n", encoding="utf-8")
 
     inv = tmp_path / "classes.txt"
-    out = tmp_path / "diagram.md"
+    out = tmp_path / "diagram.HTM"
 
     discover_args = argparse.Namespace(
         root=str(root),
@@ -68,8 +99,8 @@ def test_cmd_discover_and_cmd_diagram_work_end_to_end(tmp_path: Path) -> None:
         namespace="legacy",
         style="flat",
         aliases=True,
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        recursive_attributes=False,
+        title="Project UML",
     )
 
     assert cmd_discover(discover_args) == 0
@@ -108,8 +139,8 @@ def test_cmd_diagram_filters_classname_and_module(tmp_path: Path) -> None:
         style="escaped",
         aliases=False,
         filters=[r"Keep$"],
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        recursive_attributes=False,
+        title="Project UML",
     )
     assert cmd_diagram(diagram_by_name_args) == 0
     text_by_name = out_by_name.read_text(encoding="utf-8")
@@ -123,13 +154,177 @@ def test_cmd_diagram_filters_classname_and_module(tmp_path: Path) -> None:
         style="escaped",
         aliases=False,
         filters=[r"pkg\.b"],
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        recursive_attributes=False,
+        title="Project UML",
     )
     assert cmd_diagram(diagram_by_module_args) == 0
     text_by_module = out_by_module.read_text(encoding="utf-8")
     assert "class `pkg.b.Drop`" in text_by_module
     assert "class `pkg.a.Keep`" not in text_by_module
+
+
+def test_cmd_diagram_namespace_none_omits_namespaces_and_module_prefix(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "a.py").write_text("class Keep:\n    pass\n", encoding="utf-8")
+    (pkg / "b.py").write_text("class Drop:\n    pass\n", encoding="utf-8")
+
+    inv = tmp_path / "classes.txt"
+    out = tmp_path / "diagram_none.md"
+
+    discover_args = argparse.Namespace(
+        root=str(root),
+        output=str(inv),
+        style="escaped",
+        follow="path",
+        namespace_from_root=False,
+    )
+    assert cmd_discover(discover_args) == 0
+    assert inv.exists()
+
+    diagram_args = argparse.Namespace(
+        inventory=str(inv),
+        output=str(out),
+        namespace="none",
+        style="escaped",
+        aliases=False,
+        recursive_attributes=False,
+        title="Project UML",
+    )
+    assert cmd_diagram(diagram_args) == 0
+    text = out.read_text(encoding="utf-8")
+    assert "namespace " not in text
+    assert "class `Keep` {" in text
+    assert "class `Drop` {" in text
+    assert "class `pkg.a.Keep` {" not in text
+    assert "class `pkg.b.Drop` {" not in text
+
+
+def test_cmd_diagram_recursive_attributes_child_overrides_parent(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "base.py").write_text(
+        "class Base:\n"
+        "    item: int = 0\n"
+        "    def run(self) -> int:\n"
+        "        return 1\n"
+        "    def keep(self) -> bool:\n"
+        "        return True\n",
+        encoding="utf-8",
+    )
+    (pkg / "child.py").write_text(
+        "from pkg.base import Base\n"
+        "class Child(Base):\n"
+        '    item: str = "x"\n'
+        "    def run(self) -> str:\n"
+        '        return "ok"\n',
+        encoding="utf-8",
+    )
+
+    inv = tmp_path / "classes.txt"
+    out = tmp_path / "diagram_recursive.md"
+
+    discover_args = argparse.Namespace(
+        root=str(root),
+        output=str(inv),
+        style="escaped",
+        follow="path",
+        namespace_from_root=False,
+    )
+    assert cmd_discover(discover_args) == 0
+    assert inv.exists()
+
+    diagram_args = argparse.Namespace(
+        inventory=str(inv),
+        output=str(out),
+        namespace="none",
+        style="escaped",
+        aliases=False,
+        recursive_attributes=True,
+        title="Project UML",
+    )
+    assert cmd_diagram(diagram_args) == 0
+
+    text = out.read_text(encoding="utf-8")
+    child_block = text.split("class `Child` {", 1)[1].split("}", 1)[0]
+    assert "+item: str" in child_block
+    assert "+item: int" not in child_block
+    assert "+run() str" in child_block
+    assert "+run() int" not in child_block
+    assert "+keep() bool" in child_block
+
+
+def test_cmd_diagram_isolate_class_uses_graph_distance(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "chain.py").write_text(
+        "class A:\n"
+        "    pass\n"
+        "class B(A):\n"
+        "    pass\n"
+        "class C(B):\n"
+        "    pass\n"
+        "class D(C):\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+
+    inv = tmp_path / "classes.txt"
+    out_distance_1 = tmp_path / "diagram_isolate_d1.md"
+    out_distance_2 = tmp_path / "diagram_isolate_d2.md"
+
+    discover_args = argparse.Namespace(
+        root=str(root),
+        output=str(inv),
+        style="escaped",
+        follow="path",
+        namespace_from_root=False,
+    )
+    assert cmd_discover(discover_args) == 0
+    assert inv.exists()
+
+    isolate_d1_args = argparse.Namespace(
+        inventory=str(inv),
+        output=str(out_distance_1),
+        namespace="nested",
+        style="escaped",
+        aliases=False,
+        recursive_attributes=False,
+        isolate_class="pkg.chain.B",
+        isolate_distance=1,
+        title="Project UML",
+    )
+    assert cmd_diagram(isolate_d1_args) == 0
+    text_d1 = out_distance_1.read_text(encoding="utf-8")
+    assert "class `pkg.chain.A` {" in text_d1
+    assert "class `pkg.chain.B` {" in text_d1
+    assert "class `pkg.chain.C` {" in text_d1
+    assert "class `pkg.chain.D` {" not in text_d1
+
+    isolate_d2_args = argparse.Namespace(
+        inventory=str(inv),
+        output=str(out_distance_2),
+        namespace="nested",
+        style="escaped",
+        aliases=False,
+        recursive_attributes=False,
+        isolate_class="pkg.chain.B",
+        isolate_distance=2,
+        title="Project UML",
+    )
+    assert cmd_diagram(isolate_d2_args) == 0
+    text_d2 = out_distance_2.read_text(encoding="utf-8")
+    assert "class `pkg.chain.D` {" in text_d2
 
 
 def test_cmd_generate_from_markdown_and_html(tmp_path: Path) -> None:
@@ -169,7 +364,7 @@ def test_cmd_generate_from_markdown_and_html(tmp_path: Path) -> None:
     assert "dependency: Base" in app_text
     assert "def run(self) -> None:" in app_text
 
-    html_diagram = tmp_path / "diagram.html"
+    html_diagram = tmp_path / "diagram.HTM"
     html_diagram.write_text(
         '<!doctype html><html><body><pre class="mermaid">'
         + "classDiagram\nclass `pkg.alpha.Alpha` {\n}\n"

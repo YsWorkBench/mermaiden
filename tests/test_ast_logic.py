@@ -40,6 +40,8 @@ def test_expr_and_annotation_stringification() -> None:
     assert expr_to_name(_parse_expr("list[str]")) == "list[str]"
     assert expr_to_name(_parse_expr("A | B")) == "A | B"
     assert annotation_to_str(_parse_expr("dict[str, int]")) == "dict[str, int]"
+    assert annotation_to_str(_parse_expr("Annotated[int, Field(gt=0)]")) == "int"
+    assert annotation_to_str(_parse_expr("typing.Annotated[str, 'desc']")) == "str"
     assert (
         annotation_to_str(_parse_expr("tuple(None, Service)")) == "tuple[None, Service]"
     )
@@ -64,6 +66,16 @@ def test_method_filters_and_type_split() -> None:
 
     deps = split_type_names("list[foo.Bar] | Optional[Baz]")
     assert deps == {"Bar", "Baz"}
+    assert split_type_names(
+        annotation_to_str(_parse_expr("Annotated[Foo, Field(gt=0)]"))
+    ) == {"Foo"}
+    assert split_type_names("ConfigDict | Foo") == {"Foo"}
+    assert split_type_names("Optional[List['dummy.dummy_composition']]") == {
+        "dummy_composition"
+    }
+    assert split_type_names('Optional[List["dummy.dummy_composition"]]') == {
+        "dummy_composition"
+    }
     assert looks_like_interface("abc.ABC")
     assert looks_like_interface("UserProtocol")
     assert not looks_like_interface("BaseClass")
@@ -104,3 +116,18 @@ def test_extract_class_attributes_and_init_instance_attributes() -> None:
     assert ("count", "int") in pairs
     assert ("dep", "Service") in pairs
     assert ("inline", "Repo") in pairs
+
+
+def test_extract_class_attributes_skips_pydantic_model_config() -> None:
+    cls = _parse_class(
+        "class A:\n"
+        "    model_config = ConfigDict(from_attributes=True)\n"
+        "    model_config_2: ConfigDict = ConfigDict(frozen=True)\n"
+        "    keep: int = 1\n"
+    )
+
+    class_attrs = extract_class_level_attributes(cls)
+    pairs = [(a.name, a.type_name) for a in class_attrs]
+    assert ("model_config", "ConfigDict") not in pairs
+    assert ("model_config_2", "ConfigDict") in pairs
+    assert ("keep", "int") in pairs

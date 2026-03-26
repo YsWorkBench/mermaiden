@@ -88,8 +88,7 @@ def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
         namespace="nested",
         style="escaped",
         aliases=True,
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        title="UML Class Diagram",
     )
 
     assert cmd_discover(discover_args) == 0
@@ -167,8 +166,7 @@ def test_dummy_package_example_cli_follow_init_py(tmp_path: Path) -> None:
         namespace="nested",
         style="escaped",
         aliases=True,
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        title="UML Class Diagram",
     )
 
     assert cmd_discover(discover_args) == 0
@@ -222,8 +220,7 @@ def test_dummy_package_example_cli_namespace_from_root(tmp_path: Path) -> None:
         namespace="nested",
         style="escaped",
         aliases=True,
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        title="UML Class Diagram",
     )
 
     assert cmd_discover(discover_args) == 0
@@ -272,8 +269,7 @@ def test_dummy_package_example_cli_aliases_off(tmp_path: Path) -> None:
         namespace="nested",
         style="escaped",
         aliases=False,
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        title="UML Class Diagram",
     )
 
     assert cmd_discover(discover_args) == 0
@@ -318,8 +314,7 @@ def test_dummy_package_generate_recreates_structure_from_markdown_and_html(
         namespace="nested",
         style="escaped",
         aliases=True,
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        title="UML Class Diagram",
     )
     diagram_html_args = argparse.Namespace(
         inventory=str(inventory_out),
@@ -327,8 +322,7 @@ def test_dummy_package_generate_recreates_structure_from_markdown_and_html(
         namespace="nested",
         style="escaped",
         aliases=True,
-        html_title="HTML UML Class Diagram",
-        markdown_title="Mardown UML Class Diagram",
+        title="UML Class Diagram",
     )
 
     assert cmd_discover(discover_args) == 0

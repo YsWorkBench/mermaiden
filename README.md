@@ -116,7 +116,7 @@ Which generates a Markdown file `UMLdiagram.md` with the following [content](exa
 # Generate HTML output instead of Markdown
 mermaiden diagram classes.txt --output diagram.html
 
-# Customize namespace rendering (nested or legacy)
+# Customize namespace rendering (nested, legacy, or none)
 mermaiden diagram classes.txt --namespace nested
 
 # Choose identifier style (flat or escaped)
@@ -125,14 +125,23 @@ mermaiden diagram classes.txt --style flat
 # Toggle aliases for classes and namespaces
 mermaiden diagram classes.txt --aliases
 
+# Expand class members with inherited attributes/methods (child overrides win)
+mermaiden diagram classes.txt --recursive-attributes
+
+# Isolate one class and keep graph-neighbors up to distance 1 (default)
+mermaiden diagram classes.txt --isolate-class "pkg.module.MyClass"
+
+# Expand the isolate neighborhood to distance 2
+mermaiden diagram classes.txt --isolate-class "pkg.module.MyClass" --isolate-distance 2
+
 # Filter included classes/modules with regex (matches class name, qualname, module, or FQCN)
 mermaiden diagram classes.txt --filters '^pkg\.service' 'Controller$'
 
 # Explicitly pass an empty filter list (equivalent to no filtering)
 mermaiden diagram classes.txt --filters
 
-# Custom titles
-mermaiden diagram classes.txt --markdown-title "My Project UML" --html-title "My Project Diagram"
+# Custom title (used for markdown and HTML)
+mermaiden diagram classes.txt --title "My Project UML"
 ```
 
 ### Reverse Generation
@@ -196,7 +205,7 @@ classDiagram
 ```
 
 + `--namespace`
-  + `flat`: Uses the flat namespace format (default) with the namespace include class trick:
+  + `legacy`: Uses the compatibility namespace format (default) with the namespace include class trick:
 
 ```
 classDiagram
@@ -230,6 +239,18 @@ classDiagram
     }
 ```
 
+  + `none`: Emits no namespace blocks and uses module-free class identifiers:
+
+```
+classDiagram
+    class MySubPackageClass{
+        ...
+    }
+    class MySubSubPackageClass{
+        ...
+    }
+```
+
 + `--aliases`
   + given: emits aliases on class and namespace declarations
 
@@ -250,6 +271,20 @@ namespace `dummy_pckg`{
   ...
 }
 ```
+
++ `--recursive-attributes`
+  + not given: only displays attributes and methods directly declared on each class.
+  + given: recursively includes inherited attributes and methods using depth-first post-order traversal, so child overrides replace parent members.
+
++ `--isolate-class`
+  + not given: renders all classes (subject to other filters).
+  + given: resolves one class from the inventory, builds a relationship graph, then keeps only classes within shortest-path distance `<= --isolate-distance`.
+  + the shortest paths are computed with Dijkstra's algorithm.
+
++ `--isolate-distance`
+  + only used with `--isolate-class`.
+  + default: `1` (matched class + direct neighbors).
+  + set `0` to keep only the matched class.
 
 + `--filters`
   + optional list of regex patterns to keep only matching classes in the diagram output.
@@ -427,7 +462,7 @@ mermaiden diagram django_classes.txt --output django_uml.md
 
 # Analyze a FastAPI application
 mermaiden discover ./app --output fastapi_classes.txt
-mermaiden diagram fastapi_classes.txt --output fastapi_uml.html --html-title "FastAPI Architecture"
+mermaiden diagram fastapi_classes.txt --output fastapi_uml.html --title "FastAPI Architecture"
 ```
 
 ## Support

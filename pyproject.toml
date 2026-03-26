@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mermaiden"
-version = "0.9.1"
+version = "0.10.0"
 description = "Two-phase Python UML extractor that generates Mermaid class diagrams"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -28,6 +28,7 @@ classifiers = [
 ]
 requires-python = ">=3.8.1"
 dependencies = [
+    "bump2version>=1.0.1",
     "pre-commit>=3.5.0",
     "pydantic>=2.10.6",
     "pytest-cov>=5.0.0",

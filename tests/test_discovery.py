@@ -105,6 +105,68 @@ def test_discover_classes_collects_class_level_associations(tmp_path: Path) -> N
     assert ("pkg.deps.Service", RelationType.ASSOCIATION, "pkg.app.Child") in rels
 
 
+def test_discover_classes_handles_pydantic_configdict_and_annotated_metadata(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "app.py").write_text(
+        "class ConfigDict:\n    pass\n"
+        "class Field:\n    pass\n"
+        "class Service:\n    pass\n"
+        "class MyModel:\n"
+        "    model_config = ConfigDict(from_attributes=True)\n"
+        "    dep: Annotated[Service, Field] = Service\n",
+        encoding="utf-8",
+    )
+
+    classes = {cls.fqcn: cls for cls in discover_classes(root)}
+    rels = set(collect_all_relations(classes))
+
+    model = classes["pkg.app.MyModel"]
+    model_attrs = {(attr.name, attr.type_name) for attr in model.attributes}
+    assert ("model_config", "ConfigDict") not in model_attrs
+    assert ("dep", "Service") in model_attrs
+    assert ("pkg.app.Service", RelationType.ASSOCIATION, "pkg.app.MyModel") in rels
+    assert (
+        "pkg.app.ConfigDict",
+        RelationType.ASSOCIATION,
+        "pkg.app.MyModel",
+    ) not in rels
+    assert ("pkg.app.Field", RelationType.ASSOCIATION, "pkg.app.MyModel") not in rels
+
+
+def test_discover_classes_parses_quoted_forward_ref_attribute_types(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "app.py").write_text(
+        "class Field:\n    pass\n"
+        "class dummy_composition:\n    pass\n"
+        "class dummy:\n"
+        "    composition: Optional[List['dummy.dummy_composition']] = Field(...)\n",
+        encoding="utf-8",
+    )
+
+    classes = {cls.fqcn: cls for cls in discover_classes(root)}
+    rels = set(collect_all_relations(classes))
+
+    dummy_cls = classes["pkg.app.dummy"]
+    attr_pairs = {(attr.name, attr.type_name) for attr in dummy_cls.attributes}
+    assert (
+        "pkg.app.dummy_composition",
+        RelationType.ASSOCIATION,
+        "pkg.app.dummy",
+    ) in rels
+    assert ("pkg.app.Field", RelationType.ASSOCIATION, "pkg.app.dummy") not in rels
+    assert any(name == "composition" for name, _ in attr_pairs)
+
+
 def test_discover_classes_follow_init_py_flattens_namespaces(tmp_path: Path) -> None:
     root = tmp_path / "src"
     pkg = root / "pkg"

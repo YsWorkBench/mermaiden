@@ -3,8 +3,44 @@
 from __future__ import annotations
 
 import ast
+import re
 
 from models import AttributeInfo, IGNORED_SPECIAL_METHODS, MethodInfo
+
+
+def _is_annotated_expression(node: ast.AST | None) -> bool:
+    """Return True when the node is ``typing.Annotated[...]``."""
+    if not isinstance(node, ast.Subscript):
+        return False
+    base = expr_to_name(node.value)
+    return base == "Annotated" or base.endswith(".Annotated")
+
+
+def _iter_subscript_args(node: ast.Subscript) -> list[ast.AST]:
+    """Return subscript arguments as a normalized list."""
+    if isinstance(node.slice, ast.Tuple):
+        return list(node.slice.elts)
+    return [node.slice]
+
+
+def _type_name_tokens(type_name: str) -> set[str]:
+    """Split a type expression into normalized short-name tokens."""
+    raw = (
+        type_name.replace("[", " ")
+        .replace("]", " ")
+        .replace(",", " ")
+        .replace("|", " ")
+        .replace("(", " ")
+        .replace(")", " ")
+    )
+    return {part.split(".")[-1] for part in raw.split() if part}
+
+
+def should_skip_pydantic_internal_attribute(name: str, type_name: str) -> bool:
+    """Return True for known pydantic internal class attributes."""
+    if name != "model_config":
+        return False
+    return "ConfigDict" in _type_name_tokens(type_name)
 
 
 def expr_to_name(node: ast.AST | None) -> str:
@@ -35,6 +71,14 @@ def expr_to_name(node: ast.AST | None) -> str:
 
 def annotation_to_str(node: ast.AST | None) -> str:
     """Render a type annotation node as text."""
+    if _is_annotated_expression(node):
+        annotated_node = node
+        assert isinstance(annotated_node, ast.Subscript)
+        args = _iter_subscript_args(annotated_node)
+        if args:
+            return annotation_to_str(args[0])
+        return ""
+
     if isinstance(node, ast.Call):
         base = expr_to_name(node.func)
         arg_parts = [annotation_to_str(arg) for arg in node.args]
@@ -120,11 +164,25 @@ def split_type_names(type_name: str) -> set[str]:
         .replace(")", " ")
     )
     parts = {p.strip() for p in raw.split() if p.strip()}
+
+    normalized_parts: set[str] = set()
+    for part in parts:
+        cleaned = part.strip().strip("'").strip('"')
+        if not cleaned or "=" in cleaned:
+            continue
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_\.]*", cleaned):
+            continue
+        normalized_parts.add(cleaned)
+
     noise = {
         "list",
+        "List",
         "dict",
+        "Dict",
         "set",
+        "Set",
         "tuple",
+        "Tuple",
         "Optional",
         "Union",
         "Iterable",
@@ -139,8 +197,14 @@ def split_type_names(type_name: str) -> set[str]:
         "Self",
         "Type",
         "Protocol",
+        "Annotated",
+        "ConfigDict",
     }
-    return {p.split(".")[-1] for p in parts if p not in noise}
+    return {
+        part.split(".")[-1]
+        for part in normalized_parts
+        if part.split(".")[-1] not in noise
+    }
 
 
 def looks_like_interface(base_name: str) -> bool:
@@ -188,11 +252,18 @@ def extract_class_level_attributes(node: ast.ClassDef) -> list[AttributeInfo]:
             inferred = infer_type_from_value(item.value)
             for target in item.targets:
                 if isinstance(target, ast.Name):
+                    if should_skip_pydantic_internal_attribute(target.id, inferred):
+                        continue
                     attrs[target.id] = AttributeInfo(target.id, inferred)
         elif isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
+            type_name = annotation_to_str(item.annotation) or infer_type_from_value(
+                item.value
+            )
+            if should_skip_pydantic_internal_attribute(item.target.id, type_name):
+                continue
             attrs[item.target.id] = AttributeInfo(
                 item.target.id,
-                annotation_to_str(item.annotation) or infer_type_from_value(item.value),
+                type_name,
             )
 
     return sorted(attrs.values(), key=lambda a: a.name)

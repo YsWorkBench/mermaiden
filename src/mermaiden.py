@@ -3,15 +3,89 @@
 from __future__ import annotations
 
 import argparse
+import heapq
 import re
 from typing import Callable, cast
 
-from discovery import discover_classes, rebuild_class_map_from_inventory
+from discovery import (
+    collect_all_relations,
+    discover_classes,
+    rebuild_class_map_from_inventory,
+)
 from generate import generate_codebase_from_diagram
 from inventory import write_inventory
 from models import ClassInfo
 from paths import normalize_path
 from render import write_mermaid_output
+
+
+def _resolve_isolate_target(
+    classes: dict[str, ClassInfo], query: str
+) -> tuple[str | None, str | None]:
+    """Resolve ``--isolate-class`` query to a single class FQCN."""
+    if not query:
+        return None, "Empty --isolate-class value is not allowed"
+
+    ranked_matches: list[tuple[int, str]] = []
+    for fqcn, cls in classes.items():
+        if fqcn == query:
+            ranked_matches.append((0, fqcn))
+        elif cls.qualname == query:
+            ranked_matches.append((1, fqcn))
+        elif cls.name == query:
+            ranked_matches.append((2, fqcn))
+        elif fqcn.endswith(f".{query}"):
+            ranked_matches.append((3, fqcn))
+        elif cls.class_id == query:
+            ranked_matches.append((4, fqcn))
+
+    if not ranked_matches:
+        return None, f"--isolate-class did not match any class: {query!r}"
+
+    best_rank = min(rank for rank, _ in ranked_matches)
+    candidates = sorted({fqcn for rank, fqcn in ranked_matches if rank == best_rank})
+    if len(candidates) > 1:
+        preview = ", ".join(candidates[:5])
+        suffix = "..." if len(candidates) > 5 else ""
+        return (
+            None,
+            f"--isolate-class is ambiguous for {query!r}: {preview}{suffix}",
+        )
+
+    return candidates[0], None
+
+
+def _build_relation_graph(classes: dict[str, ClassInfo]) -> dict[str, dict[str, int]]:
+    """Build an undirected weighted graph from class relations."""
+    graph: dict[str, dict[str, int]] = {fqcn: {} for fqcn in classes}
+    for source_fqcn, _, target_fqcn in collect_all_relations(classes):
+        if source_fqcn not in classes or target_fqcn not in classes:
+            continue
+        graph[source_fqcn][target_fqcn] = 1
+        graph[target_fqcn][source_fqcn] = 1
+    return graph
+
+
+def _dijkstra_shortest_paths(
+    graph: dict[str, dict[str, int]], start: str
+) -> dict[str, float]:
+    """Compute shortest-path distances using Dijkstra's algorithm."""
+    distances: dict[str, float] = {node: float("inf") for node in graph}
+    distances[start] = 0
+
+    queue: list[tuple[int, str]] = [(0, start)]
+    while queue:
+        current_distance, current = heapq.heappop(queue)
+        if current_distance > distances[current]:
+            continue
+
+        for neighbor, weight in graph[current].items():
+            candidate = current_distance + weight
+            if candidate < distances[neighbor]:
+                distances[neighbor] = candidate
+                heapq.heappush(queue, (candidate, neighbor))
+
+    return distances
 
 
 def cmd_discover(args: argparse.Namespace) -> int:
@@ -44,6 +118,10 @@ def cmd_diagram(args: argparse.Namespace) -> int:
     output_file = normalize_path(args.output)
     aliases = getattr(args, "aliases", False)
     filters = getattr(args, "filters", None)
+    title = getattr(args, "title", "UML Class Diagram")
+    recursive_attributes = getattr(args, "recursive_attributes", False)
+    isolate_class = getattr(args, "isolate_class", None)
+    isolate_distance = getattr(args, "isolate_distance", 1)
 
     if not inventory_file.exists():
         print(f"[ERROR] Inventory file not found: {inventory_file}")
@@ -53,6 +131,30 @@ def cmd_diagram(args: argparse.Namespace) -> int:
     if not classes:
         print("[ERROR] No classes could be rebuilt from inventory")
         return 1
+
+    if isolate_class is None and isolate_distance != 1:
+        print("[ERROR] --isolate-distance requires --isolate-class")
+        return 1
+    if isolate_distance < 0:
+        print("[ERROR] --isolate-distance must be >= 0")
+        return 1
+
+    if isolate_class:
+        target_fqcn, isolate_error = _resolve_isolate_target(classes, isolate_class)
+        if isolate_error is not None or target_fqcn is None:
+            print(f"[ERROR] {isolate_error}")
+            return 1
+
+        graph = _build_relation_graph(classes)
+        shortest_paths = _dijkstra_shortest_paths(graph, target_fqcn)
+        kept = {
+            fqcn
+            for fqcn, distance in shortest_paths.items()
+            if distance <= isolate_distance
+        }
+        kept.add(target_fqcn)
+        classes = {fqcn: cls for fqcn, cls in classes.items() if fqcn in kept}
+        print(f"[OK] Isolated {target_fqcn} with graph distance <= {isolate_distance}")
 
     if filters:
         compiled_filters: list[re.Pattern[str]] = []
@@ -81,8 +183,9 @@ def cmd_diagram(args: argparse.Namespace) -> int:
         namespace=args.namespace,
         style=args.style,
         aliases=aliases,
-        html_title=args.html_title,
-        markdown_title=args.markdown_title,
+        recursive_attributes=recursive_attributes,
+        html_title=title,
+        markdown_title=title,
     )
     print(f"[OK] Mermaid diagram written to: {output_file}")
     print(f"[OK] Included {len(classes)} classes")
@@ -145,13 +248,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     p2 = subparsers.add_parser("diagram", help="Generate Mermaid UML from inventory")
     p2.add_argument("inventory", help="Inventory file")
-    p2.add_argument("--output", default="UMLdiagram.md", help="Markdown output file")
+    p2.add_argument(
+        "--output",
+        "--ouput",
+        dest="output",
+        default="UMLdiagram.md",
+        help="Diagram output file (.md, .html, or .htm)",
+    )
     p2.set_defaults(func=cmd_diagram)
     p2.add_argument(
         "--namespace",
-        choices=["nested", "legacy"],
+        type=str.lower,
+        choices=["nested", "legacy", "none"],
         default="legacy",
-        help="Namespace rendering mode: nested namespaces or legacy for compatibility fallback",
+        help=(
+            "Namespace rendering mode: nested namespaces, "
+            "legacy compatibility fallback, or none (no namespace blocks)"
+        ),
     )
     p2.add_argument(
         "--style",
@@ -165,6 +278,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Whether Mermaid aliases are emitted for classes and namespaces",
     )
     p2.add_argument(
+        "--recursive-attributes",
+        action="store_true",
+        help=(
+            "Render inherited attributes/methods on each class using "
+            "depth-first post-order traversal so child overrides are kept"
+        ),
+    )
+    p2.add_argument(
+        "--isolate-class",
+        default=None,
+        metavar="CLASS",
+        help=(
+            "Keep only one matched class and its graph neighbors "
+            "(by shortest-path distance)"
+        ),
+    )
+    p2.add_argument(
+        "--isolate-distance",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Graph distance used with --isolate-class (default: 1)",
+    )
+    p2.add_argument(
         "--filters",
         nargs="*",
         default=None,
@@ -175,22 +312,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p2.add_argument(
-        "--markdown-title",
-        default="Mardown UML Class Diagram",
-        help="Document title for markdown output",
-    )
-
-    p2.add_argument(
-        "--html-title",
-        default="HTML UML Class Diagram",
-        help="Document title for HTML output",
+        "--title",
+        default="UML Class Diagram",
+        help="Document title for markdown and HTML outputs",
     )
 
     p3 = subparsers.add_parser(
         "generate",
         help="Generate default Python codebase from Mermaid UML markdown/html",
     )
-    p3.add_argument("diagram", help="Input diagram file (.md or .html)")
+    p3.add_argument("diagram", help="Input diagram file (.md, .html, or .htm)")
     p3.add_argument(
         "--output",
         default="generated_src",

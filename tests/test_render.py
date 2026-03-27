@@ -121,6 +121,176 @@ def test_generate_mermaid_source_bad_namespace_raises() -> None:
         generate_mermaid_source(_sample_classes(), namespace="bad")
 
 
+def test_generate_mermaid_source_skip_enums_hides_enum_values() -> None:
+    ordered_enum = ClassInfo(
+        class_id="pkg_OrderedEnum",
+        fqcn="pkg.OrderedEnum",
+        module="pkg",
+        qualname="OrderedEnum",
+        name="OrderedEnum",
+        filepath="a.py",
+        lineno=1,
+        bases=["Enum"],
+        attributes=[AttributeInfo("A", "int")],
+    )
+    dummy_type_enum = ClassInfo(
+        class_id="pkg_DummyTypeEnum",
+        fqcn="pkg.DummyTypeEnum",
+        module="pkg",
+        qualname="DummyTypeEnum",
+        name="DummyTypeEnum",
+        filepath="a.py",
+        lineno=2,
+        bases=["OrderedEnum"],
+        attributes=[AttributeInfo("DummyPckg", "int"), AttributeInfo("Other", "int")],
+    )
+    regular = ClassInfo(
+        class_id="pkg_Regular",
+        fqcn="pkg.Regular",
+        module="pkg",
+        qualname="Regular",
+        name="Regular",
+        filepath="a.py",
+        lineno=3,
+        attributes=[AttributeInfo("value", "int")],
+    )
+    classes = {
+        "pkg.OrderedEnum": ordered_enum,
+        "pkg.DummyTypeEnum": dummy_type_enum,
+        "pkg.Regular": regular,
+    }
+
+    without_skip = generate_mermaid_source(classes, namespace="none", aliases=False)
+    with_skip = generate_mermaid_source(
+        classes,
+        namespace="none",
+        aliases=False,
+        skip_enums=True,
+    )
+
+    assert "+A: int" in without_skip
+    assert "+DummyPckg: int" in without_skip
+    assert "+value: int" in without_skip
+
+    assert "+A: int" not in with_skip
+    assert "+DummyPckg: int" not in with_skip
+    assert "+Other: int" not in with_skip
+    assert "class OrderedEnum {" in with_skip
+    assert "class DummyTypeEnum {" in with_skip
+    assert "+value: int" in with_skip
+
+
+def test_generate_mermaid_source_skip_enums_detects_structural_enum_and_derivatives() -> (
+    None
+):
+    descriptive_enum = ClassInfo(
+        class_id="pkg_DescriptiveEnum",
+        fqcn="pkg.DescriptiveEnum",
+        module="pkg",
+        qualname="DescriptiveEnum",
+        name="DescriptiveEnum",
+        filepath="a.py",
+        lineno=1,
+        attributes=[AttributeInfo("Foo", "str"), AttributeInfo("Bar", "str")],
+    )
+    derived_descriptive_enum = ClassInfo(
+        class_id="pkg_DerivedDescriptiveEnum",
+        fqcn="pkg.DerivedDescriptiveEnum",
+        module="pkg",
+        qualname="DerivedDescriptiveEnum",
+        name="DerivedDescriptiveEnum",
+        filepath="a.py",
+        lineno=2,
+        bases=["DescriptiveEnum"],
+        attributes=[AttributeInfo("Baz", "str"), AttributeInfo("Qux", "str")],
+    )
+    descriptive_ordered_enum = ClassInfo(
+        class_id="pkg_DescriptiveOrderedEnum",
+        fqcn="pkg.DescriptiveOrderedEnum",
+        module="pkg",
+        qualname="DescriptiveOrderedEnum",
+        name="DescriptiveOrderedEnum",
+        filepath="a.py",
+        lineno=3,
+        attributes=[
+            AttributeInfo("Alpha", "tuple"),
+            AttributeInfo("Beta", "tuple"),
+        ],
+    )
+    regular = ClassInfo(
+        class_id="pkg_Regular",
+        fqcn="pkg.Regular",
+        module="pkg",
+        qualname="Regular",
+        name="Regular",
+        filepath="a.py",
+        lineno=4,
+        attributes=[AttributeInfo("value", "str")],
+    )
+    classes = {
+        "pkg.DescriptiveEnum": descriptive_enum,
+        "pkg.DerivedDescriptiveEnum": derived_descriptive_enum,
+        "pkg.DescriptiveOrderedEnum": descriptive_ordered_enum,
+        "pkg.Regular": regular,
+    }
+
+    without_skip = generate_mermaid_source(classes, namespace="none", aliases=False)
+    with_skip = generate_mermaid_source(
+        classes,
+        namespace="none",
+        aliases=False,
+        skip_enums=True,
+    )
+
+    assert "+Foo: str" in without_skip
+    assert "+Baz: str" in without_skip
+    assert "+Alpha: tuple" in without_skip
+
+    assert "+Foo: str" not in with_skip
+    assert "+Bar: str" not in with_skip
+    assert "+Baz: str" not in with_skip
+    assert "+Qux: str" not in with_skip
+    assert "+Alpha: tuple" not in with_skip
+    assert "+Beta: tuple" not in with_skip
+    assert "class DescriptiveEnum {" in with_skip
+    assert "class DerivedDescriptiveEnum {" in with_skip
+    assert "class DescriptiveOrderedEnum {" in with_skip
+    assert "+value: str" in with_skip
+
+
+def test_generate_mermaid_source_strips_quotes_for_related_forward_refs_only() -> None:
+    owner = ClassInfo(
+        class_id="pkg_Owner",
+        fqcn="pkg.Owner",
+        module="pkg",
+        qualname="Owner",
+        name="Owner",
+        filepath="a.py",
+        lineno=1,
+        attributes=[
+            AttributeInfo("items", "list['Item']"),
+            AttributeInfo("tag", "Literal['internal']"),
+        ],
+        relations=[Relation("pkg.Owner", "Item", RelationType.AGGREGATION)],
+    )
+    item = ClassInfo(
+        class_id="pkg_Item",
+        fqcn="pkg.Item",
+        module="pkg",
+        qualname="Item",
+        name="Item",
+        filepath="a.py",
+        lineno=2,
+    )
+    classes = {"pkg.Owner": owner, "pkg.Item": item}
+
+    diagram = generate_mermaid_source(classes, namespace="none", aliases=False)
+
+    assert "+items: list[Item]" in diagram
+    assert "+items: list['Item']" not in diagram
+    assert "+tag: Literal['internal']" in diagram
+
+
 def test_render_markdown_and_html_document() -> None:
     md = render_markdown_document("classDiagram\n", title="My Diagram")
     assert md.startswith("# My Diagram")

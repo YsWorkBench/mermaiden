@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import Path
+import re
 
 from discovery import collect_all_relations, resolve_target_name
 from models import (
@@ -15,6 +16,17 @@ from models import (
     NamespaceNode,
 )
 
+ENUM_BASE_SHORT_NAMES = {
+    "Enum",
+    "IntEnum",
+    "StrEnum",
+    "Flag",
+    "IntFlag",
+    "ReprEnum",
+}
+STRUCTURAL_ENUM_VALUE_TYPES = {"str", "int", "tuple"}
+FORWARD_REF_TOKEN_RE = re.compile(r"""(['"])([A-Za-z_][A-Za-z0-9_\.]*)\1""")
+
 
 def _format_mermaid_alias(identifier: str, label: str, aliases: bool) -> str:
     """Return Mermaid identifier with optional display label alias."""
@@ -22,6 +34,123 @@ def _format_mermaid_alias(identifier: str, label: str, aliases: bool) -> str:
         return identifier
     escaped_label = label.replace('"', r"\"")
     return f'{identifier}["{escaped_label}"]'
+
+
+def _is_direct_enum_base(base_name: str) -> bool:
+    """Return True when a base name refers to a known enum base."""
+    return base_name.split(".")[-1] in ENUM_BASE_SHORT_NAMES
+
+
+def _normalize_structural_enum_type(type_name: str) -> str:
+    """Normalize attribute type names for structural enum detection."""
+    compact = type_name.replace(" ", "")
+    if compact.startswith("tuple["):
+        return "tuple"
+    return compact
+
+
+def _is_structural_enum_class(cls: ClassInfo) -> bool:
+    """Heuristically detect enum-like classes from constant member structure."""
+    if cls.methods:
+        return False
+
+    public_attrs = [attr for attr in cls.attributes if not attr.name.startswith("_")]
+    if len(public_attrs) < 2:
+        return False
+    if not all(attr.name[:1].isupper() for attr in public_attrs):
+        return False
+    if not all(attr.type_name for attr in public_attrs):
+        return False
+
+    normalized_types = {
+        _normalize_structural_enum_type(attr.type_name) for attr in public_attrs
+    }
+    if len(normalized_types) != 1:
+        return False
+
+    normalized_type = next(iter(normalized_types))
+    return normalized_type in STRUCTURAL_ENUM_VALUE_TYPES
+
+
+def _build_enum_class_map(classes: dict[str, ClassInfo]) -> dict[str, bool]:
+    """Mark classes that are enums (directly or through inheritance)."""
+    memo: dict[str, bool] = {}
+    visiting: set[str] = set()
+
+    def is_enum_class(fqcn: str) -> bool:
+        if fqcn in memo:
+            return memo[fqcn]
+        if fqcn in visiting:
+            return False
+
+        visiting.add(fqcn)
+        cls = classes[fqcn]
+        result = _is_structural_enum_class(cls)
+        for base in cls.bases:
+            if _is_direct_enum_base(base):
+                result = True
+                break
+            target_fqcn = resolve_target_name(base, cls, classes)
+            if target_fqcn and target_fqcn in classes and is_enum_class(target_fqcn):
+                result = True
+                break
+
+        visiting.remove(fqcn)
+        memo[fqcn] = result
+        return result
+
+    for fqcn in classes:
+        is_enum_class(fqcn)
+
+    return memo
+
+
+def _select_class_members(
+    cls: ClassInfo,
+    recursive_member_map: dict[str, tuple[list[AttributeInfo], list[MethodInfo]]],
+    enum_class_map: dict[str, bool],
+    skip_enums: bool,
+) -> tuple[list[AttributeInfo] | None, list[MethodInfo] | None]:
+    """Return class members to render, applying enum/member rendering options."""
+    cls_attributes, cls_methods = recursive_member_map.get(cls.fqcn, (None, None))
+    if skip_enums and enum_class_map.get(cls.fqcn, False):
+        return [], cls_methods if cls_methods is not None else cls.methods
+    return cls_attributes, cls_methods
+
+
+def _normalize_related_forward_ref_types(
+    cls: ClassInfo,
+    attributes: list[AttributeInfo],
+    classes: dict[str, ClassInfo],
+    relation_pairs: set[tuple[str, str]],
+) -> list[AttributeInfo]:
+    """Drop quotes from forward refs only when they resolve to related classes."""
+    normalized: list[AttributeInfo] = []
+
+    for attr in attributes:
+        if "'" not in attr.type_name and '"' not in attr.type_name:
+            normalized.append(attr)
+            continue
+
+        def _replace(match: re.Match[str]) -> str:
+            candidate = match.group(2)
+            target_fqcn = resolve_target_name(candidate, cls, classes)
+            if target_fqcn is None:
+                return match.group(0)
+            if (cls.fqcn, target_fqcn) not in relation_pairs and (
+                target_fqcn,
+                cls.fqcn,
+            ) not in relation_pairs:
+                return match.group(0)
+            return candidate
+
+        updated_type_name = FORWARD_REF_TOKEN_RE.sub(_replace, attr.type_name)
+        if updated_type_name == attr.type_name:
+            normalized.append(attr)
+        else:
+            normalized.append(AttributeInfo(attr.name, updated_type_name))
+
+    return normalized
 
 
 def mermaid_class_block(
@@ -56,6 +185,10 @@ def render_nested_namespace_lines(
     recursive_member_map: (
         dict[str, tuple[list[AttributeInfo], list[MethodInfo]]] | None
     ) = None,
+    enum_class_map: dict[str, bool] | None = None,
+    skip_enums: bool = False,
+    classes: dict[str, ClassInfo] | None = None,
+    relation_pairs: set[tuple[str, str]] | None = None,
 ) -> list[str]:
     """Render namespaces recursively using Mermaid nested namespace blocks."""
     lines: list[str] = []
@@ -73,16 +206,27 @@ def render_nested_namespace_lines(
                 if class_id_map is not None
                 else cls.class_id
             )
-            cls_attributes, cls_methods = (
-                recursive_member_map.get(cls.fqcn, (None, None))
-                if recursive_member_map is not None
-                else (None, None)
+            cls_attributes, cls_methods = _select_class_members(
+                cls,
+                recursive_member_map or {},
+                enum_class_map or {},
+                skip_enums,
             )
+            attrs_for_render = (
+                cls_attributes if cls_attributes is not None else cls.attributes
+            )
+            if classes is not None and relation_pairs is not None:
+                attrs_for_render = _normalize_related_forward_ref_types(
+                    cls,
+                    attrs_for_render,
+                    classes,
+                    relation_pairs,
+                )
             for row in mermaid_class_block(
                 cls,
                 aliases=aliases,
                 class_identifier=cls_identifier,
-                attributes=cls_attributes,
+                attributes=attrs_for_render,
                 methods=cls_methods,
             ):
                 lines.append(f"{pad}  {row}")
@@ -95,6 +239,10 @@ def render_nested_namespace_lines(
                 aliases=aliases,
                 class_id_map=class_id_map,
                 recursive_member_map=recursive_member_map,
+                enum_class_map=enum_class_map,
+                skip_enums=skip_enums,
+                classes=classes,
+                relation_pairs=relation_pairs,
             )
         )
         lines.append(f"{pad}" + "}")
@@ -110,6 +258,10 @@ def render_compat_namespace_lines(
     recursive_member_map: (
         dict[str, tuple[list[AttributeInfo], list[MethodInfo]]] | None
     ) = None,
+    enum_class_map: dict[str, bool] | None = None,
+    skip_enums: bool = False,
+    classes: dict[str, ClassInfo] | None = None,
+    relation_pairs: set[tuple[str, str]] | None = None,
 ) -> list[str]:
     """Render namespaces in compatibility mode for Mermaid limitations."""
     lines: list[str] = []
@@ -135,16 +287,27 @@ def render_compat_namespace_lines(
                     if class_id_map is not None
                     else cls.class_id
                 )
-                cls_attributes, cls_methods = (
-                    recursive_member_map.get(cls.fqcn, (None, None))
-                    if recursive_member_map is not None
-                    else (None, None)
+                cls_attributes, cls_methods = _select_class_members(
+                    cls,
+                    recursive_member_map or {},
+                    enum_class_map or {},
+                    skip_enums,
                 )
+                attrs_for_render = (
+                    cls_attributes if cls_attributes is not None else cls.attributes
+                )
+                if classes is not None and relation_pairs is not None:
+                    attrs_for_render = _normalize_related_forward_ref_types(
+                        cls,
+                        attrs_for_render,
+                        classes,
+                        relation_pairs,
+                    )
                 for row in mermaid_class_block(
                     cls,
                     aliases=aliases,
                     class_identifier=cls_identifier,
-                    attributes=cls_attributes,
+                    attributes=attrs_for_render,
                     methods=cls_methods,
                 ):
                     lines.append(f"  {row}")
@@ -236,6 +399,7 @@ def generate_mermaid_source(
     style: str = "flat",
     aliases: bool = True,
     recursive_attributes: bool = False,
+    skip_enums: bool = False,
 ) -> str:
     """Generate Mermaid source text from discovered class metadata."""
     lines: list[str] = ["classDiagram"]
@@ -247,20 +411,35 @@ def generate_mermaid_source(
     recursive_member_map = (
         _build_recursive_member_map(classes) if recursive_attributes else {}
     )
+    enum_class_map = _build_enum_class_map(classes) if skip_enums else {}
+    all_relations = collect_all_relations(classes)
+    relation_pairs = {(src_fqcn, tgt_fqcn) for src_fqcn, _, tgt_fqcn in all_relations}
 
     tree = build_namespace_tree(classes)
 
     if namespace != "none":
         for cls in sorted(tree.classes, key=lambda c: c.qualname):
             cls_identifier = class_id_map.get(cls.fqcn, cls.class_id)
-            cls_attributes, cls_methods = recursive_member_map.get(
-                cls.fqcn, (None, None)
+            cls_attributes, cls_methods = _select_class_members(
+                cls,
+                recursive_member_map,
+                enum_class_map,
+                skip_enums,
+            )
+            attrs_for_render = (
+                cls_attributes if cls_attributes is not None else cls.attributes
+            )
+            attrs_for_render = _normalize_related_forward_ref_types(
+                cls,
+                attrs_for_render,
+                classes,
+                relation_pairs,
             )
             for row in mermaid_class_block(
                 cls,
                 aliases=aliases,
                 class_identifier=cls_identifier,
-                attributes=cls_attributes,
+                attributes=attrs_for_render,
                 methods=cls_methods,
             ):
                 lines.append(row)
@@ -273,6 +452,10 @@ def generate_mermaid_source(
                 aliases=aliases,
                 class_id_map=class_id_map,
                 recursive_member_map=recursive_member_map,
+                enum_class_map=enum_class_map,
+                skip_enums=skip_enums,
+                classes=classes,
+                relation_pairs=relation_pairs,
             )
         )
     elif namespace == "legacy":
@@ -283,19 +466,35 @@ def generate_mermaid_source(
                 aliases=aliases,
                 class_id_map=class_id_map,
                 recursive_member_map=recursive_member_map,
+                enum_class_map=enum_class_map,
+                skip_enums=skip_enums,
+                classes=classes,
+                relation_pairs=relation_pairs,
             )
         )
     elif namespace == "none":
         for cls in sorted(classes.values(), key=lambda c: (c.qualname, c.fqcn)):
             cls_identifier = class_id_map[cls.fqcn]
-            cls_attributes, cls_methods = recursive_member_map.get(
-                cls.fqcn, (None, None)
+            cls_attributes, cls_methods = _select_class_members(
+                cls,
+                recursive_member_map,
+                enum_class_map,
+                skip_enums,
+            )
+            attrs_for_render = (
+                cls_attributes if cls_attributes is not None else cls.attributes
+            )
+            attrs_for_render = _normalize_related_forward_ref_types(
+                cls,
+                attrs_for_render,
+                classes,
+                relation_pairs,
             )
             for row in mermaid_class_block(
                 cls,
                 aliases=aliases,
                 class_identifier=cls_identifier,
-                attributes=cls_attributes,
+                attributes=attrs_for_render,
                 methods=cls_methods,
             ):
                 lines.append(row)
@@ -304,7 +503,7 @@ def generate_mermaid_source(
 
     lines.append("")
 
-    for src_fqcn, rel_type, tgt_fqcn in collect_all_relations(classes):
+    for src_fqcn, rel_type, tgt_fqcn in all_relations:
         src_id = class_id_map.get(src_fqcn, classes[src_fqcn].class_id)
         tgt_id = class_id_map.get(tgt_fqcn, classes[tgt_fqcn].class_id)
         lines.append(f"{src_id} {rel_type.value} {tgt_id}")
@@ -349,6 +548,7 @@ def write_diagram_output(
     style: str = "flat",
     aliases: bool = True,
     recursive_attributes: bool = False,
+    skip_enums: bool = False,
     html_title: str = "Process Flow Diagram",
     markdown_title: str = "UML Class Diagram",
 ) -> None:
@@ -361,6 +561,7 @@ def write_diagram_output(
         style=style,
         aliases=aliases,
         recursive_attributes=recursive_attributes,
+        skip_enums=skip_enums,
     )
 
     if suffix == ".md":
@@ -389,6 +590,7 @@ def write_mermaid_output(
     style: str = "flat",
     aliases: bool = True,
     recursive_attributes: bool = False,
+    skip_enums: bool = False,
     html_title: str = "Process Flow Diagram",
     markdown_title: str = "UML Class Diagram",
 ) -> None:
@@ -400,6 +602,7 @@ def write_mermaid_output(
         style=style,
         aliases=aliases,
         recursive_attributes=recursive_attributes,
+        skip_enums=skip_enums,
         html_title=html_title,
         markdown_title=markdown_title,
     )

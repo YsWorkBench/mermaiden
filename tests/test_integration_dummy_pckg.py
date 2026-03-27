@@ -7,11 +7,13 @@ import shutil
 import subprocess
 import sys
 
+from discovery import collect_all_relations, rebuild_class_map_from_inventory
 from inventory import read_inventory
 from mermaiden import cmd_diagram, cmd_discover, cmd_generate
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_DUMMY_PACKAGE = ROOT / "examples" / "dummy_pckg"
+EXAMPLE_DUMMY_PYDANTIC_PACKAGE = ROOT / "examples" / "dummy_pckg_pydantic"
 EXAMPLE_DUMMY_DIAGRAM = ROOT / "examples" / "dummy_pckgUML.md"
 PERSISTED_RECREATED_DUMMY_PACKAGE = (
     ROOT / "examples" / "generated_dummy_pckg_inspect_once"
@@ -46,6 +48,44 @@ def _relative_files(root: Path) -> set[str]:
     return {str(path.relative_to(root)) for path in root.rglob("*") if path.is_file()}
 
 
+def _relation_signature(inventory_path: Path) -> set[tuple[str, str, str]]:
+    classes = rebuild_class_map_from_inventory(inventory_path, style="escaped")
+    return {
+        (source_fqcn, relation_type.value, target_fqcn)
+        for source_fqcn, relation_type, target_fqcn in collect_all_relations(classes)
+    }
+
+
+def _run_discover_and_diagram(
+    source_root: Path,
+    tmp_path: Path,
+    stem: str,
+) -> tuple[Path, Path]:
+    inventory_out = tmp_path / f"{stem}.txt"
+    diagram_out = tmp_path / f"{stem}.md"
+
+    discover_args = argparse.Namespace(
+        root=str(source_root),
+        output=str(inventory_out),
+        style="escaped",
+        follow="path",
+        namespace_from_root=False,
+    )
+    diagram_args = argparse.Namespace(
+        inventory=str(inventory_out),
+        output=str(diagram_out),
+        namespace="nested",
+        style="escaped",
+        aliases=True,
+        title="UML Class Diagram",
+    )
+    assert cmd_discover(discover_args) == 0
+    assert inventory_out.exists()
+    assert cmd_diagram(diagram_args) == 0
+    assert diagram_out.exists()
+    return inventory_out, diagram_out
+
+
 def test_dummy_package_main_instantiates_all_objects(tmp_path: Path) -> None:
     _ensure_example_dummy_package_exists()
     copied_package = tmp_path / "dummy_pckg"
@@ -64,6 +104,53 @@ def test_dummy_package_main_instantiates_all_objects(tmp_path: Path) -> None:
     assert completed.returncode == 0, completed.stderr
     assert "MyABC: Hello World" in completed.stdout
     assert "All dummy_pckg objects instantiated successfully." in completed.stdout
+
+
+def test_dummy_pydantic_package_generates_similar_diagram(tmp_path: Path) -> None:
+    _ensure_example_dummy_package_exists()
+    assert EXAMPLE_DUMMY_PYDANTIC_PACKAGE.exists()
+
+    copied_dummy_package = tmp_path / "dummy_pckg"
+    copied_pydantic_package = tmp_path / "dummy_pckg_pydantic"
+    shutil.copytree(EXAMPLE_DUMMY_PACKAGE, copied_dummy_package)
+    shutil.copytree(EXAMPLE_DUMMY_PYDANTIC_PACKAGE, copied_pydantic_package)
+
+    dummy_inventory, _ = _run_discover_and_diagram(
+        copied_dummy_package / "src",
+        tmp_path,
+        "dummy_pckg",
+    )
+    pydantic_inventory, pydantic_diagram = _run_discover_and_diagram(
+        copied_pydantic_package / "src",
+        tmp_path,
+        "dummy_pckg_pydantic",
+    )
+
+    assert _inventory_fqcns(dummy_inventory) == _inventory_fqcns(pydantic_inventory)
+    assert _relation_signature(dummy_inventory) == _relation_signature(
+        pydantic_inventory
+    )
+
+    pydantic_diagram_text = pydantic_diagram.read_text(encoding="utf-8")
+    assert "+composition: list[dummy.dummy_composition]" in pydantic_diagram_text
+    assert "+composition: list['dummy.dummy_composition']" not in pydantic_diagram_text
+    assert (
+        "`dummy_pckg.dummy` *-- `dummy_pckg.dummy.dummy_composition`"
+        in pydantic_diagram_text
+    )
+    assert (
+        "`dummy_pckg.dummy` o-- "
+        "`subpckg_aggregation.subpckg_aggregation.dummy_aggregation`"
+        in pydantic_diagram_text
+    )
+    assert (
+        "`dummy_pckg.dummy.dummy_composition` --> `dummy_pckg.dummy`"
+        not in pydantic_diagram_text
+    )
+    assert (
+        "`subpckg_aggregation.subpckg_aggregation.dummy_aggregation` --> "
+        "`dummy_pckg.dummy`" not in pydantic_diagram_text
+    )
 
 
 def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
@@ -109,6 +196,8 @@ def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
         "dummy_pckg.dummy.dummy_composition",
         "subpckg_aggregation.subpckg_aggregation.dummy_aggregation",
         "subpckg_association.subpckg_association.dummy_association",
+        "subpckg_inheritance.subpckg_inheritance.DummyTypeEnum",
+        "subpckg_inheritance.subpckg_inheritance.OrderedEnum",
         "subpckg_inheritance.subpckg_inheritance.dummy_inheritance",
         (
             "subpckg_inheritance.subpckg_inheritance_nested_association."
@@ -135,12 +224,30 @@ def test_dummy_package_example_cli_integration(tmp_path: Path) -> None:
         "`subpckg_realisation.subpckg_realisation.dummy_realisation`"
     ) in generated_diagram
     assert "+aggregations: Optional[list[dummy_aggregation]]" in generated_diagram
+    assert "-type_: Literal[DummyTypeEnum.DummyPckg]" in generated_diagram
+    assert "-type_: Literal[DummyTypeEnum.DummyComposition]" in generated_diagram
+    assert "-type_: Literal[DummyTypeEnum.DummyAggregation]" in generated_diagram
+    assert "-type_: Literal[DummyTypeEnum.DummyAssociation]" in generated_diagram
+    assert "-type_: Literal[DummyTypeEnum.DummyInheritance]" in generated_diagram
+    assert (
+        "-type_: Literal[DummyTypeEnum.DummyInheritanceNestedAssociation]"
+        in generated_diagram
+    )
+    assert (
+        "-type_: Literal[DummyTypeEnum.DummyInheritanceNestedInheritance]"
+        in generated_diagram
+    )
+    assert "-type_: Literal[DummyTypeEnum.DummyRealisation]" in generated_diagram
     assert "+link: dummy_inheritance_nested_association" in generated_diagram
     assert (
         "`subpckg_inheritance.subpckg_inheritance_nested_association."
         "subpckg_inheritance_nested_association.dummy_inheritance_nested_association` "
         "--> `subpckg_inheritance.subpckg_inheritance_nested_inheritance."
         "subpckg_inheritance_nested_inheritance.dummy_inheritance_nested_inheritance`"
+    ) in generated_diagram
+    assert (
+        "`subpckg_inheritance.subpckg_inheritance.OrderedEnum` <|-- "
+        "`subpckg_inheritance.subpckg_inheritance.DummyTypeEnum`"
     ) in generated_diagram
 
 

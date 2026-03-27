@@ -29,6 +29,7 @@ def test_build_parser_from_cli_namespace() -> None:
     diagram_recursive_attributes = parser.parse_args(
         ["diagram", "classes.txt", "--recursive-attributes"]
     )
+    diagram_skip_enums = parser.parse_args(["diagram", "classes.txt", "--skip-enums"])
     diagram_isolate_default = parser.parse_args(["diagram", "classes.txt"])
     diagram_isolate_args = parser.parse_args(
         [
@@ -63,6 +64,8 @@ def test_build_parser_from_cli_namespace() -> None:
     assert diagram_namespace_none.namespace == "none"
     assert diagram_aliases_default.recursive_attributes is False
     assert diagram_recursive_attributes.recursive_attributes is True
+    assert diagram_aliases_default.skip_enums is False
+    assert diagram_skip_enums.skip_enums is True
     assert diagram_isolate_default.isolate_class is None
     assert diagram_isolate_default.isolate_distance == 1
     assert diagram_isolate_args.isolate_class == "pkg.chain.B"
@@ -100,6 +103,7 @@ def test_cmd_discover_and_cmd_diagram_work_end_to_end(tmp_path: Path) -> None:
         style="flat",
         aliases=True,
         recursive_attributes=False,
+        skip_enums=False,
         title="Project UML",
     )
 
@@ -140,6 +144,7 @@ def test_cmd_diagram_filters_classname_and_module(tmp_path: Path) -> None:
         aliases=False,
         filters=[r"Keep$"],
         recursive_attributes=False,
+        skip_enums=False,
         title="Project UML",
     )
     assert cmd_diagram(diagram_by_name_args) == 0
@@ -155,6 +160,7 @@ def test_cmd_diagram_filters_classname_and_module(tmp_path: Path) -> None:
         aliases=False,
         filters=[r"pkg\.b"],
         recursive_attributes=False,
+        skip_enums=False,
         title="Project UML",
     )
     assert cmd_diagram(diagram_by_module_args) == 0
@@ -193,6 +199,7 @@ def test_cmd_diagram_namespace_none_omits_namespaces_and_module_prefix(
         style="escaped",
         aliases=False,
         recursive_attributes=False,
+        skip_enums=False,
         title="Project UML",
     )
     assert cmd_diagram(diagram_args) == 0
@@ -249,6 +256,7 @@ def test_cmd_diagram_recursive_attributes_child_overrides_parent(
         style="escaped",
         aliases=False,
         recursive_attributes=True,
+        skip_enums=False,
         title="Project UML",
     )
     assert cmd_diagram(diagram_args) == 0
@@ -300,6 +308,7 @@ def test_cmd_diagram_isolate_class_uses_graph_distance(tmp_path: Path) -> None:
         style="escaped",
         aliases=False,
         recursive_attributes=False,
+        skip_enums=False,
         isolate_class="pkg.chain.B",
         isolate_distance=1,
         title="Project UML",
@@ -318,6 +327,7 @@ def test_cmd_diagram_isolate_class_uses_graph_distance(tmp_path: Path) -> None:
         style="escaped",
         aliases=False,
         recursive_attributes=False,
+        skip_enums=False,
         isolate_class="pkg.chain.B",
         isolate_distance=2,
         title="Project UML",
@@ -325,6 +335,86 @@ def test_cmd_diagram_isolate_class_uses_graph_distance(tmp_path: Path) -> None:
     assert cmd_diagram(isolate_d2_args) == 0
     text_d2 = out_distance_2.read_text(encoding="utf-8")
     assert "class `pkg.chain.D` {" in text_d2
+
+
+def test_cmd_diagram_skip_enums_hides_enum_members(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "types.py").write_text(
+        "from enum import Enum\n"
+        "class OrderedEnum(Enum):\n"
+        "    A = 1\n"
+        "class Kind(OrderedEnum):\n"
+        "    Foo = 1\n"
+        "    Bar = 2\n"
+        "class DescriptiveEnum:\n"
+        "    Basic = 'basic'\n"
+        "    Advanced = 'advanced'\n"
+        "class DerivedDescriptiveEnum(DescriptiveEnum):\n"
+        "    Pro = 'pro'\n"
+        "    Enterprise = 'enterprise'\n"
+        "class Holder:\n"
+        "    kind: Kind = Kind.Foo\n",
+        encoding="utf-8",
+    )
+
+    inv = tmp_path / "classes.txt"
+    out_default = tmp_path / "diagram_default.md"
+    out_skip = tmp_path / "diagram_skip.md"
+
+    discover_args = argparse.Namespace(
+        root=str(root),
+        output=str(inv),
+        style="escaped",
+        follow="path",
+        namespace_from_root=False,
+    )
+    assert cmd_discover(discover_args) == 0
+    assert inv.exists()
+
+    diagram_default_args = argparse.Namespace(
+        inventory=str(inv),
+        output=str(out_default),
+        namespace="nested",
+        style="escaped",
+        aliases=False,
+        recursive_attributes=False,
+        skip_enums=False,
+        title="Project UML",
+    )
+    assert cmd_diagram(diagram_default_args) == 0
+    default_text = out_default.read_text(encoding="utf-8")
+    assert "+Foo: int" in default_text
+    assert "+Bar: int" in default_text
+    assert "+Basic: str" in default_text
+    assert "+Advanced: str" in default_text
+    assert "+Pro: str" in default_text
+    assert "+Enterprise: str" in default_text
+    assert "+kind: Kind" in default_text
+
+    diagram_skip_args = argparse.Namespace(
+        inventory=str(inv),
+        output=str(out_skip),
+        namespace="nested",
+        style="escaped",
+        aliases=False,
+        recursive_attributes=False,
+        skip_enums=True,
+        title="Project UML",
+    )
+    assert cmd_diagram(diagram_skip_args) == 0
+    skip_text = out_skip.read_text(encoding="utf-8")
+    assert "class `pkg.types.Kind` {" in skip_text
+    assert "+Foo: int" not in skip_text
+    assert "+Bar: int" not in skip_text
+    assert "+A: int" not in skip_text
+    assert "+Basic: str" not in skip_text
+    assert "+Advanced: str" not in skip_text
+    assert "+Pro: str" not in skip_text
+    assert "+Enterprise: str" not in skip_text
+    assert "+kind: Kind" in skip_text
 
 
 def test_cmd_generate_from_markdown_and_html(tmp_path: Path) -> None:

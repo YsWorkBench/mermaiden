@@ -1,0 +1,3 @@
+"""Nested inheritance example package."""
+
+from .subpckg_inheritance_nested_inheritance import dummy_inheritance_nested_inheritance

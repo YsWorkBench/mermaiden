@@ -1,11 +1,14 @@
+"""Inheritance example module."""
+
 from enum import Enum
 from typing import Literal
 
-from pydantic import Field
-from pydantic.dataclasses import dataclass
+from pydantic import Field, BaseModel
 
 
 class OrderedEnum(Enum):
+    """Enum base class supporting ordering comparisons by value."""
+
     def __lt__(self, other: object) -> bool:
         if self.__class__ is other.__class__:
             return bool(self.value < other.value)
@@ -28,6 +31,8 @@ class OrderedEnum(Enum):
 
 
 class DummyTypeEnum(OrderedEnum):
+    """Enum describing class-specific dummy package kinds."""
+
     DummyPckg = 1
     DummyComposition = 2
     DummyAggregation = 3
@@ -38,8 +43,9 @@ class DummyTypeEnum(OrderedEnum):
     DummyRealisation = 8
 
 
-@dataclass
-class dummy_inheritance:
+class dummy_inheritance(BaseModel):
+    """Example class demonstrating inheritance relationships."""
+
     type_: Literal[DummyTypeEnum.DummyInheritance] = Field(
         default=DummyTypeEnum.DummyInheritance,
         description="Dummy type discriminator",

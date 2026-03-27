@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from subpckg_aggregation.subpckg_aggregation import dummy_aggregation
 from subpckg_association.subpckg_association import dummy_association
@@ -10,13 +10,18 @@ from subpckg_inheritance.subpckg_inheritance_nested_association import (
 from subpckg_inheritance.subpckg_inheritance_nested_inheritance import (
     dummy_inheritance_nested_inheritance,
 )
+from subpckg_inheritance.subpckg_inheritance import DummyTypeEnum
 from subpckg_realisation.subpckg_realisation import dummy_realisation
 
 
 class dummy(dummy_realisation):
     class dummy_composition:
+        type_: Literal[DummyTypeEnum.DummyComposition] = DummyTypeEnum.DummyComposition
+
         def __init__(self, label: str = "composition") -> None:
             self.label = label
+
+    type_: Literal[DummyTypeEnum.DummyPckg] = DummyTypeEnum.DummyPckg
 
     def MyABC(self) -> str:
         return "MyABC: Hello World"

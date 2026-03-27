@@ -77,45 +77,92 @@ class RelationCollector:
         return sorted(attrs.values(), key=lambda a: a.name), list(relations.values())
 
     @staticmethod
-    def _constructor_targets_from_value(node: ast.AST | None) -> set[str]:
+    def _constructor_targets_from_value(
+        node: ast.AST | None, include_nested_calls: bool = False
+    ) -> set[str]:
         """Extract constructor call targets from assignment values."""
         if node is None:
             return set()
 
+        targets: set[str] = set()
+
         if isinstance(node, ast.Call):
             callee = expr_to_name(node.func)
-            return {callee} if callee else set()
+            if callee:
+                targets.add(callee)
+            if include_nested_calls:
+                for arg in node.args:
+                    targets.update(
+                        RelationCollector._constructor_targets_from_value(
+                            arg, include_nested_calls=include_nested_calls
+                        )
+                    )
+                for keyword in node.keywords:
+                    targets.update(
+                        RelationCollector._constructor_targets_from_value(
+                            keyword.value, include_nested_calls=include_nested_calls
+                        )
+                    )
+            return targets
 
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-            targets: set[str] = set()
             for elt in node.elts:
-                targets.update(RelationCollector._constructor_targets_from_value(elt))
+                targets.update(
+                    RelationCollector._constructor_targets_from_value(
+                        elt, include_nested_calls=include_nested_calls
+                    )
+                )
             return targets
 
         if isinstance(node, ast.Dict):
-            targets = set()
             for key in node.keys:
                 if key is not None:
                     targets.update(
-                        RelationCollector._constructor_targets_from_value(key)
+                        RelationCollector._constructor_targets_from_value(
+                            key, include_nested_calls=include_nested_calls
+                        )
                     )
             for value in node.values:
-                targets.update(RelationCollector._constructor_targets_from_value(value))
+                targets.update(
+                    RelationCollector._constructor_targets_from_value(
+                        value, include_nested_calls=include_nested_calls
+                    )
+                )
             return targets
 
         if isinstance(node, ast.ListComp):
-            return RelationCollector._constructor_targets_from_value(node.elt)
+            return RelationCollector._constructor_targets_from_value(
+                node.elt, include_nested_calls=include_nested_calls
+            )
 
         if isinstance(node, ast.SetComp):
-            return RelationCollector._constructor_targets_from_value(node.elt)
+            return RelationCollector._constructor_targets_from_value(
+                node.elt, include_nested_calls=include_nested_calls
+            )
 
         if isinstance(node, ast.DictComp):
             return RelationCollector._constructor_targets_from_value(
-                node.key
-            ) | RelationCollector._constructor_targets_from_value(node.value)
+                node.key, include_nested_calls=include_nested_calls
+            ) | RelationCollector._constructor_targets_from_value(
+                node.value, include_nested_calls=include_nested_calls
+            )
 
         if isinstance(node, ast.GeneratorExp):
-            return RelationCollector._constructor_targets_from_value(node.elt)
+            return RelationCollector._constructor_targets_from_value(
+                node.elt, include_nested_calls=include_nested_calls
+            )
+
+        if isinstance(node, ast.Lambda):
+            return RelationCollector._constructor_targets_from_value(
+                node.body, include_nested_calls=include_nested_calls
+            )
+
+        if isinstance(node, ast.IfExp):
+            return RelationCollector._constructor_targets_from_value(
+                node.body, include_nested_calls=include_nested_calls
+            ) | RelationCollector._constructor_targets_from_value(
+                node.orelse, include_nested_calls=include_nested_calls
+            )
 
         return set()
 
@@ -357,7 +404,7 @@ class RelationCollector:
     def _collect_class_attribute_associations(
         self, current_fqcn: str
     ) -> list[Relation]:
-        """Extract association relations from class-level annotated attributes."""
+        """Extract relations from class-level annotated attributes."""
         relations: dict[tuple[str, str, RelationType], Relation] = {}
 
         for item in self.class_node.body:
@@ -372,12 +419,40 @@ class RelationCollector:
             if should_skip_pydantic_internal_attribute(item.target.id, type_name):
                 continue
 
+            constructor_targets = self._constructor_targets_from_value(
+                item.value, include_nested_calls=True
+            )
+            constructor_target_short_names = {
+                target_name.split(".")[-1] for target_name in constructor_targets
+            }
+            default_relation_type = (
+                RelationType.AGGREGATION
+                if self._is_container_type(type_name)
+                else RelationType.ASSOCIATION
+            )
+            default_reason = (
+                "class attribute container type annotation"
+                if default_relation_type == RelationType.AGGREGATION
+                else "class attribute type annotation"
+            )
+
             for dep in split_type_names(type_name):
+                dep_short_name = dep.split(".")[-1]
+                relation_type = (
+                    RelationType.COMPOSITION
+                    if dep_short_name in constructor_target_short_names
+                    else default_relation_type
+                )
+                reason = (
+                    "class attribute initialized from constructor call"
+                    if relation_type == RelationType.COMPOSITION
+                    else default_reason
+                )
                 rel = Relation(
                     current_fqcn,
                     dep,
-                    RelationType.ASSOCIATION,
-                    "class attribute type annotation",
+                    relation_type,
+                    reason,
                 )
                 relations[(rel.source_fqcn, rel.target_name, rel.relation_type)] = rel
 

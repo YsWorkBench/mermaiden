@@ -120,6 +120,7 @@ def cmd_diagram(args: argparse.Namespace) -> int:
     filters = getattr(args, "filters", None)
     title = getattr(args, "title", "UML Class Diagram")
     recursive_attributes = getattr(args, "recursive_attributes", False)
+    skip_enums = getattr(args, "skip_enums", False)
     isolate_class = getattr(args, "isolate_class", None)
     isolate_distance = getattr(args, "isolate_distance", 1)
 
@@ -184,6 +185,7 @@ def cmd_diagram(args: argparse.Namespace) -> int:
         style=args.style,
         aliases=aliases,
         recursive_attributes=recursive_attributes,
+        skip_enums=skip_enums,
         html_title=title,
         markdown_title=title,
     )
@@ -284,6 +286,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Render inherited attributes/methods on each class using "
             "depth-first post-order traversal so child overrides are kept"
         ),
+    )
+    p2.add_argument(
+        "--skip-enums",
+        action="store_true",
+        help="Hide enum value members while still rendering enum classes",
     )
     p2.add_argument(
         "--isolate-class",

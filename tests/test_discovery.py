@@ -159,12 +159,33 @@ def test_discover_classes_parses_quoted_forward_ref_attribute_types(
     dummy_cls = classes["pkg.app.dummy"]
     attr_pairs = {(attr.name, attr.type_name) for attr in dummy_cls.attributes}
     assert (
-        "pkg.app.dummy_composition",
-        RelationType.ASSOCIATION,
         "pkg.app.dummy",
+        RelationType.AGGREGATION,
+        "pkg.app.dummy_composition",
     ) in rels
     assert ("pkg.app.Field", RelationType.ASSOCIATION, "pkg.app.dummy") not in rels
     assert any(name == "composition" for name, _ in attr_pairs)
+
+
+def test_discover_classes_class_attribute_default_factory_implies_composition(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "app.py").write_text(
+        "class Field:\n    pass\n"
+        "class Item:\n    pass\n"
+        "class Holder:\n"
+        "    items: list[Item] = Field(default_factory=lambda: [Item()])\n",
+        encoding="utf-8",
+    )
+
+    classes = {cls.fqcn: cls for cls in discover_classes(root)}
+    rels = set(collect_all_relations(classes))
+
+    assert ("pkg.app.Holder", RelationType.COMPOSITION, "pkg.app.Item") in rels
 
 
 def test_discover_classes_follow_init_py_flattens_namespaces(tmp_path: Path) -> None:

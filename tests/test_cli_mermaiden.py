@@ -4,7 +4,11 @@ import argparse
 import ast
 from pathlib import Path
 
+import pytest
+
+import mermaiden as mermaiden_module
 from mermaiden import build_parser, cmd_diagram, cmd_discover, cmd_generate
+from models import ClassInfo, RelationType
 
 
 def test_mermaiden_module_is_parseable() -> None:
@@ -492,6 +496,222 @@ def test_cmd_generate_from_markdown_and_html(tmp_path: Path) -> None:
     assert "identifier: int = Field(...)" in pydantic_base_text
     assert "class Service(Base):" in pydantic_app_text
     assert "dependency: Base = Field(...)" in pydantic_app_text
+
+
+def test_resolve_isolate_target_covers_ranking_and_errors() -> None:
+    nested = ClassInfo(
+        class_id="pkg_mod_Outer_Inner",
+        fqcn="pkg.mod.Outer.Inner",
+        module="pkg.mod",
+        qualname="Outer.Inner",
+        name="Inner",
+        filepath="a.py",
+        lineno=1,
+    )
+    other = ClassInfo(
+        class_id="pkg_other_Thing",
+        fqcn="pkg.other.Thing",
+        module="pkg.other",
+        qualname="Thing",
+        name="Thing",
+        filepath="b.py",
+        lineno=1,
+    )
+    classes = {nested.fqcn: nested, other.fqcn: other}
+
+    target, err = mermaiden_module._resolve_isolate_target(classes, "")
+    assert target is None
+    assert "Empty --isolate-class value" in (err or "")
+
+    target, err = mermaiden_module._resolve_isolate_target(
+        classes, "pkg.mod.Outer.Inner"
+    )
+    assert target == "pkg.mod.Outer.Inner"
+    assert err is None
+
+    target, err = mermaiden_module._resolve_isolate_target(classes, "Outer.Inner")
+    assert target == "pkg.mod.Outer.Inner"
+    assert err is None
+
+    target, err = mermaiden_module._resolve_isolate_target(classes, "Inner")
+    assert target == "pkg.mod.Outer.Inner"
+    assert err is None
+
+    target, err = mermaiden_module._resolve_isolate_target(classes, "mod.Outer.Inner")
+    assert target == "pkg.mod.Outer.Inner"
+    assert err is None
+
+    target, err = mermaiden_module._resolve_isolate_target(
+        classes, "pkg_mod_Outer_Inner"
+    )
+    assert target == "pkg.mod.Outer.Inner"
+    assert err is None
+
+    a = ClassInfo("id1", "pkg.a.Same", "pkg.a", "Same", "Same", "a.py", 1)
+    b = ClassInfo("id2", "pkg.b.Same", "pkg.b", "Same", "Same", "b.py", 1)
+    ambiguous_target, ambiguous_err = mermaiden_module._resolve_isolate_target(
+        {a.fqcn: a, b.fqcn: b}, "Same"
+    )
+    assert ambiguous_target is None
+    assert "ambiguous" in (ambiguous_err or "")
+
+    missing_target, missing_err = mermaiden_module._resolve_isolate_target(
+        classes, "DoesNotExist"
+    )
+    assert missing_target is None
+    assert "did not match any class" in (missing_err or "")
+
+
+def test_build_relation_graph_skips_unknown_relations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    a = ClassInfo("a", "pkg.A", "pkg", "A", "A", "a.py", 1)
+    b = ClassInfo("b", "pkg.B", "pkg", "B", "B", "b.py", 1)
+    classes = {a.fqcn: a, b.fqcn: b}
+
+    monkeypatch.setattr(
+        mermaiden_module,
+        "collect_all_relations",
+        lambda _: [
+            ("pkg.A", RelationType.ASSOCIATION, "pkg.B"),
+            ("pkg.A", RelationType.ASSOCIATION, "pkg.Missing"),
+        ],
+    )
+
+    graph = mermaiden_module._build_relation_graph(classes)
+    assert graph["pkg.A"] == {"pkg.B": 1}
+    assert graph["pkg.B"] == {"pkg.A": 1}
+
+
+def test_dijkstra_shortest_paths_handles_stale_queue_entries() -> None:
+    graph = {
+        "A": {"B": 10, "C": 1},
+        "B": {},
+        "C": {"B": 1},
+    }
+    distances = mermaiden_module._dijkstra_shortest_paths(graph, "A")
+    assert distances["A"] == 0
+    assert distances["C"] == 1
+    assert distances["B"] == 2
+
+
+def test_cmd_discover_invalid_directory_returns_error(tmp_path: Path) -> None:
+    args = argparse.Namespace(
+        root=str(tmp_path / "missing"),
+        output=str(tmp_path / "classes.txt"),
+        style="flat",
+        follow="path",
+        namespace_from_root=False,
+    )
+    assert cmd_discover(args) == 1
+
+
+def test_cmd_diagram_error_paths_and_filter_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    missing_args = argparse.Namespace(
+        inventory=str(tmp_path / "missing.txt"),
+        output=str(tmp_path / "out.md"),
+        namespace="nested",
+        style="escaped",
+        aliases=False,
+        recursive_attributes=False,
+        skip_enums=False,
+        isolate_class=None,
+        isolate_distance=1,
+        filters=None,
+        title="UML",
+    )
+    assert cmd_diagram(missing_args) == 1
+
+    inventory = tmp_path / "classes.txt"
+    inventory.write_text("# ROOT\t/tmp\n", encoding="utf-8")
+
+    base_args = argparse.Namespace(
+        inventory=str(inventory),
+        output=str(tmp_path / "out.md"),
+        namespace="nested",
+        style="escaped",
+        aliases=False,
+        recursive_attributes=False,
+        skip_enums=False,
+        isolate_class=None,
+        isolate_distance=1,
+        filters=None,
+        title="UML",
+    )
+
+    monkeypatch.setattr(
+        mermaiden_module, "rebuild_class_map_from_inventory", lambda *_, **__: {}
+    )
+    assert cmd_diagram(base_args) == 1
+
+    classes = {
+        "pkg.A": ClassInfo("a", "pkg.A", "pkg", "A", "A", "a.py", 1),
+    }
+    monkeypatch.setattr(
+        mermaiden_module,
+        "rebuild_class_map_from_inventory",
+        lambda *_, **__: classes,
+    )
+    monkeypatch.setattr(mermaiden_module, "write_mermaid_output", lambda *_, **__: None)
+
+    args_distance_without_isolate = argparse.Namespace(**vars(base_args))
+    args_distance_without_isolate.isolate_distance = 2
+    assert cmd_diagram(args_distance_without_isolate) == 1
+
+    args_negative_distance = argparse.Namespace(**vars(base_args))
+    args_negative_distance.isolate_class = "pkg.A"
+    args_negative_distance.isolate_distance = -1
+    assert cmd_diagram(args_negative_distance) == 1
+
+    args_bad_isolate = argparse.Namespace(**vars(base_args))
+    args_bad_isolate.isolate_class = "Missing"
+    args_bad_isolate.isolate_distance = 1
+    assert cmd_diagram(args_bad_isolate) == 1
+
+    args_bad_regex = argparse.Namespace(**vars(base_args))
+    args_bad_regex.filters = ["["]
+    assert cmd_diagram(args_bad_regex) == 1
+
+    args_no_match_filters = argparse.Namespace(**vars(base_args))
+    args_no_match_filters.filters = [r"^DoesNotMatch$"]
+    assert cmd_diagram(args_no_match_filters) == 0
+
+
+def test_cmd_generate_error_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    missing_args = argparse.Namespace(
+        diagram=str(tmp_path / "missing.md"),
+        output=str(tmp_path / "generated"),
+        pydantic=False,
+    )
+    assert cmd_generate(missing_args) == 1
+
+    diagram_file = tmp_path / "diagram.md"
+    diagram_file.write_text("# empty", encoding="utf-8")
+
+    monkeypatch.setattr(
+        mermaiden_module,
+        "generate_codebase_from_diagram",
+        lambda **_: (_ for _ in ()).throw(ValueError("boom")),
+    )
+    failing_args = argparse.Namespace(
+        diagram=str(diagram_file),
+        output=str(tmp_path / "generated"),
+        pydantic=False,
+    )
+    assert cmd_generate(failing_args) == 1
+
+
+def test_main_uses_parser_func(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _FakeParser:
+        def parse_args(self) -> argparse.Namespace:
+            return argparse.Namespace(func=lambda _: 7)
+
+    monkeypatch.setattr(mermaiden_module, "build_parser", lambda: _FakeParser())
+    assert mermaiden_module.main() == 7
 
 
 def test_cmd_generate_pydantic_uses_field_for_relation_inferred_attributes(

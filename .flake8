@@ -7,6 +7,8 @@ extend-ignore =
     W503,
     # E501: line too long (handled by black)
     E501
+    # labmda stop vor visibility
+    E731
 exclude =
     .git,
     __pycache__,
@@ -20,7 +22,7 @@ exclude =
     .pytest_cache
 per-file-ignores =
     # Tests can have longer lines, unused imports, and simplified docstring rules
-    tests/*:D100,D103,E501,F401,F811
+    tests/*:D100,D103,E501,F401,F811,E731
     # __init__.py files can have unused imports
     __init__.py:F401
 max-complexity = 30

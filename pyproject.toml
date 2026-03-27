@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mermaiden"
-version = "0.13.0"
+version = "0.13.1"
 description = "Two-phase Python UML extractor that generates Mermaid class diagrams"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -96,7 +96,7 @@ no_implicit_optional = true
 
 [tool.flake8]
 max-line-length = 88
-extend-ignore = ["E203", "W503", "E501"]
+extend-ignore = ["E203", "W503", "E501", "E731"]
 exclude = [
     ".git",
     "__pycache__",
@@ -110,7 +110,7 @@ exclude = [
     ".pytest_cache"
 ]
 per-file-ignores = [
-    "tests/*:D100,D103,E501,F401,F811",
+    "tests/*:D100,D103,E501,F401,F811,E731",
     "__init__.py:F401"
 ]
 max-complexity = 30

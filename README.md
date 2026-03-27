@@ -154,6 +154,9 @@ mermaiden generate UMLdiagram.md --output generated_src
 
 # Generate scaffold from HTML diagram
 mermaiden generate UMLdiagram.html --output generated_src
+
+# Generate pydantic BaseModel scaffold
+mermaiden generate UMLdiagram.md --output generated_src --pydantic
 ```
 
 The `generate` command parses Mermaid `classDiagram` source from:
@@ -164,6 +167,10 @@ It then creates a default module/package structure with:
 - `__init__.py` package files
 - Class stubs
 - Best-effort inheritance and relation-based attributes inferred from the UML
+
+When `--pydantic` is passed:
+- root generated classes inherit from `pydantic.BaseModel`.
+- generated attributes use `pydantic.Field(...)` defaults (best-effort default factories for list/dict/set/tuple).
 
 ### Python API
 

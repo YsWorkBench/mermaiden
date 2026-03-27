@@ -46,6 +46,7 @@ def test_build_parser_from_cli_namespace() -> None:
         ["diagram", "classes.txt", "--filters", "A$", r"pkg\.mod"]
     )
     generate_args = parser.parse_args(["generate", "diagram.md"])
+    generate_pydantic = parser.parse_args(["generate", "diagram.md", "--pydantic"])
     generate_custom_output = parser.parse_args(
         ["generate", "diagram.html", "--output", "generated_pkg"]
     )
@@ -76,6 +77,8 @@ def test_build_parser_from_cli_namespace() -> None:
     assert generate_args.command == "generate"
     assert generate_args.diagram == "diagram.md"
     assert generate_args.output == "generated_src"
+    assert generate_args.pydantic is False
+    assert generate_pydantic.pydantic is True
     assert generate_custom_output.output == "generated_pkg"
 
 
@@ -470,3 +473,55 @@ def test_cmd_generate_from_markdown_and_html(tmp_path: Path) -> None:
     alpha_py = html_output / "pkg" / "alpha.py"
     assert alpha_py.exists()
     assert "class Alpha:" in alpha_py.read_text(encoding="utf-8")
+
+    pydantic_output = tmp_path / "generated_from_md_pydantic"
+    generate_pydantic_args = argparse.Namespace(
+        diagram=str(md_diagram),
+        output=str(pydantic_output),
+        pydantic=True,
+    )
+    assert cmd_generate(generate_pydantic_args) == 0
+    pydantic_base_py = pydantic_output / "pkg" / "base.py"
+    pydantic_app_py = pydantic_output / "pkg" / "app.py"
+    assert pydantic_base_py.exists()
+    assert pydantic_app_py.exists()
+    pydantic_base_text = pydantic_base_py.read_text(encoding="utf-8")
+    pydantic_app_text = pydantic_app_py.read_text(encoding="utf-8")
+    assert "from pydantic import BaseModel, Field" in pydantic_base_text
+    assert "class Base(BaseModel):" in pydantic_base_text
+    assert "identifier: int = Field(...)" in pydantic_base_text
+    assert "class Service(Base):" in pydantic_app_text
+    assert "dependency: Base = Field(...)" in pydantic_app_text
+
+
+def test_cmd_generate_pydantic_uses_field_for_relation_inferred_attributes(
+    tmp_path: Path,
+) -> None:
+    mermaid_source = (
+        "classDiagram\n"
+        "class `pkg.src.Source` {\n"
+        "}\n"
+        "class `pkg.dst.Target` {\n"
+        "}\n"
+        "`pkg.src.Source` --> `pkg.dst.Target`\n"
+    )
+    md_diagram = tmp_path / "diagram_rel.md"
+    md_diagram.write_text(
+        "# UML\n\n```mermaid\n" + mermaid_source + "```\n",
+        encoding="utf-8",
+    )
+
+    pydantic_output = tmp_path / "generated_from_rel_pydantic"
+    generate_args = argparse.Namespace(
+        diagram=str(md_diagram),
+        output=str(pydantic_output),
+        pydantic=True,
+    )
+    assert cmd_generate(generate_args) == 0
+
+    target_py = pydantic_output / "pkg" / "dst.py"
+    assert target_py.exists()
+    target_text = target_py.read_text(encoding="utf-8")
+    assert "from pydantic import BaseModel, Field" in target_text
+    assert "class Target(BaseModel):" in target_text
+    assert "Source: Source = Field(...)" in target_text

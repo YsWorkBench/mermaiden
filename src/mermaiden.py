@@ -198,6 +198,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
     """Run the ``generate`` CLI command."""
     diagram_file = normalize_path(args.diagram)
     output_dir = normalize_path(args.output)
+    pydantic_models = getattr(args, "pydantic", False)
 
     if not diagram_file.exists() or not diagram_file.is_file():
         print(f"[ERROR] Diagram file not found: {diagram_file}")
@@ -207,6 +208,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
         class_count, module_count = generate_codebase_from_diagram(
             diagram_file=diagram_file,
             output_dir=output_dir,
+            pydantic_models=pydantic_models,
         )
     except ValueError as exc:
         print(f"[ERROR] {exc}")
@@ -333,6 +335,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         default="generated_src",
         help="Output directory for generated Python scaffold",
+    )
+    p3.add_argument(
+        "--pydantic",
+        action="store_true",
+        help="Generate pydantic BaseModel classes instead of plain classes",
     )
     p3.set_defaults(func=cmd_generate)
     return parser

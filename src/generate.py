@@ -286,6 +286,24 @@ def _collect_typing_imports(types: Iterable[str]) -> set[str]:
     return needed
 
 
+def _pydantic_field_default(type_name: str) -> str:
+    """Return a best-effort ``Field(...)`` default expression for a type."""
+    normalized = type_name.replace(" ", "")
+
+    if normalized.startswith(("Optional[", "None|")) or "|None" in normalized:
+        return "Field(default=None)"
+    if normalized.startswith(("list[", "List[")):
+        return "Field(default_factory=list)"
+    if normalized.startswith(("dict[", "Dict[")):
+        return "Field(default_factory=dict)"
+    if normalized.startswith(("set[", "Set[")):
+        return "Field(default_factory=set)"
+    if normalized.startswith(("tuple[", "Tuple[")):
+        return "Field(default_factory=tuple)"
+
+    return "Field(...)"
+
+
 def _render_method_stub(signature: str) -> list[str]:
     """Render a best-effort Python method from Mermaid signature text."""
     match = _METHOD_SIGNATURE_RE.match(signature.strip())
@@ -311,6 +329,7 @@ def _build_module_source(
     module: str,
     classes: list[GeneratedClass],
     all_classes: dict[str, GeneratedClass],
+    pydantic_models: bool = False,
 ) -> str:
     """Build Python source for one module."""
     lines: list[str] = ["from __future__ import annotations", ""]
@@ -353,6 +372,14 @@ def _build_module_source(
     if typing_imports:
         lines.append(f"from typing import {', '.join(sorted(typing_imports))}")
 
+    pydantic_imports: list[str] = []
+    if pydantic_models and any(not cls.bases for cls in classes):
+        pydantic_imports.append("BaseModel")
+    if pydantic_models and any(cls.attributes for cls in classes):
+        pydantic_imports.append("Field")
+    if pydantic_imports:
+        lines.append(f"from pydantic import {', '.join(pydantic_imports)}")
+
     for import_module in sorted(cross_imports):
         names = ", ".join(sorted(cross_imports[import_module]))
         lines.append(f"from {import_module} import {names}")
@@ -361,17 +388,26 @@ def _build_module_source(
         lines.append("")
 
     for cls in sorted(classes, key=lambda c: c.name):
-        base_names: list[str] = []
-        for base_fqcn in sorted(cls.bases):
-            base_cls = all_classes.get(base_fqcn)
-            base_names.append(base_cls.name if base_cls else base_fqcn.split(".")[-1])
+        if pydantic_models and not cls.bases:
+            base_names = ["BaseModel"]
+        else:
+            base_names = []
+            for base_fqcn in sorted(cls.bases):
+                base_cls = all_classes.get(base_fqcn)
+                base_names.append(
+                    base_cls.name if base_cls else base_fqcn.split(".")[-1]
+                )
 
         bases = f"({', '.join(base_names)})" if base_names else ""
         lines.append(f"class {cls.name}{bases}:")
 
         wrote_body = False
         for attr_name, attr_type in sorted(cls.attributes.items()):
-            lines.append(f"    {attr_name}: {attr_type}")
+            if pydantic_models:
+                field_default = _pydantic_field_default(attr_type)
+                lines.append(f"    {attr_name}: {attr_type} = {field_default}")
+            else:
+                lines.append(f"    {attr_name}: {attr_type}")
             wrote_body = True
 
         for method_sig in cls.methods:
@@ -389,7 +425,9 @@ def _build_module_source(
 
 
 def generate_codebase_from_diagram(
-    diagram_file: Path, output_dir: Path
+    diagram_file: Path,
+    output_dir: Path,
+    pydantic_models: bool = False,
 ) -> tuple[int, int]:
     """Generate a default Python codebase structure from a Mermaid diagram file."""
     mermaid_source = extract_mermaid_source(diagram_file)
@@ -449,7 +487,12 @@ def generate_codebase_from_diagram(
             if not init_file.exists():
                 init_file.write_text("", encoding="utf-8")
 
-        module_source = _build_module_source(module, modules[module], generated)
+        module_source = _build_module_source(
+            module,
+            modules[module],
+            generated,
+            pydantic_models=pydantic_models,
+        )
         module_path.write_text(module_source, encoding="utf-8")
 
     return len(generated), len(modules)

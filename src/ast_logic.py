@@ -200,11 +200,25 @@ def split_type_names(type_name: str) -> set[str]:
         "Annotated",
         "ConfigDict",
     }
-    return {
-        part.split(".")[-1]
-        for part in normalized_parts
-        if part.split(".")[-1] not in noise
-    }
+    extracted: set[str] = set()
+    for part in normalized_parts:
+        pieces = part.split(".")
+        tail = pieces[-1]
+        if tail in noise:
+            continue
+
+        # Enum member literal/reference (e.g. ``DummyTypeEnum.Member`` or
+        # ``pkg.mod.DummyTypeEnum.Member``): keep the owning enum class.
+        if len(pieces) >= 2 and pieces[-1][:1].isupper() and pieces[-2][:1].isupper():
+            owner_path = ".".join(pieces[:-1])
+            if owner_path:
+                extracted.add(owner_path)
+            extracted.add(pieces[-2])
+            continue
+
+        extracted.add(tail)
+
+    return extracted
 
 
 def looks_like_interface(base_name: str) -> bool:

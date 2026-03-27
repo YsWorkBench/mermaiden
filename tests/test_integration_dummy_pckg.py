@@ -507,9 +507,11 @@ def test_dummy_package_generate_recreates_structure_from_markdown_and_html(
         / "subpckg_inheritance_nested_inheritance.py"
     ).read_text(encoding="utf-8")
     assert (
-        "from subpckg_inheritance.subpckg_inheritance import dummy_inheritance"
+        "from subpckg_inheritance.subpckg_inheritance import"
         in generated_nested_inheritance
     )
+    assert "dummy_inheritance" in generated_nested_inheritance
+    assert "DummyTypeEnum" in generated_nested_inheritance
     assert (
         "from subpckg_inheritance.subpckg_inheritance_nested_association."
         "subpckg_inheritance_nested_association import "

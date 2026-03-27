@@ -419,6 +419,12 @@ mermaiden discover ./examples/dummy_pckg/src --output examples/dummy_pckg_from_r
 
 # Phase 2: Generate Mermaid UML diagram from inventory
 mermaiden diagram examples/dummy_pckg.txt --output examples/dummy_pckgUML.md --style escaped --namespace nested
+
+# Phase 2 (alternative): Generate Mermaid UML diagram from inventory with Pydantic models
+mermaiden diagram examples/dummy_pckg_pydantic.txt --output examples/dummy_pckg_pydanticUML.md --style escaped --namespace nested
+
+# Phase 2 (alternative): Generate Mermaid UML diagram isolating one specific --isolate-class
+mermaiden diagram examples/dummy_pckg.txt --output examples/dummy_pckgUML_specific_class.md --style escaped --namespace nested --isolate-class subpckg_inheritance.subpckg_inheritance_nested_inheritance.subpckg_inheritance_nested_inheritance.dummy_inheritance_nested_inheritance --isolate-distance 0
 ```
 
 Which generated this Mermaid UML diagram that should be compatible with github Mermaid `11.13.0`.

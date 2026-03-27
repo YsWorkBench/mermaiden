@@ -70,6 +70,9 @@ def test_method_filters_and_type_split() -> None:
         annotation_to_str(_parse_expr("Annotated[Foo, Field(gt=0)]"))
     ) == {"Foo"}
     assert split_type_names("ConfigDict | Foo") == {"Foo"}
+    assert split_type_names("Literal[DummyTypeEnum.DummyComposition]") == {
+        "DummyTypeEnum"
+    }
     assert split_type_names("Optional[List['dummy.dummy_composition']]") == {
         "dummy_composition"
     }

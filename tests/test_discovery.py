@@ -188,6 +188,66 @@ def test_discover_classes_class_attribute_default_factory_implies_composition(
     assert ("pkg.app.Holder", RelationType.COMPOSITION, "pkg.app.Item") in rels
 
 
+def test_discover_classes_resolves_literal_enum_member_via_import_alias(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "types.py").write_text(
+        "class OrderedEnum:\n    pass\n"
+        "class DummyTypeEnum(OrderedEnum):\n"
+        "    DummyComposition = 1\n",
+        encoding="utf-8",
+    )
+    (pkg / "app.py").write_text(
+        "from .types import DummyTypeEnum as DT\n"
+        "class Holder:\n"
+        "    kind: Literal[DT.DummyComposition] = DT.DummyComposition\n",
+        encoding="utf-8",
+    )
+
+    classes = {cls.fqcn: cls for cls in discover_classes(root)}
+    rels = set(collect_all_relations(classes))
+
+    assert (
+        "pkg.types.DummyTypeEnum",
+        RelationType.ASSOCIATION,
+        "pkg.app.Holder",
+    ) in rels
+
+
+def test_discover_classes_resolves_quoted_alias_reference_to_imported_class(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "types.py").write_text(
+        "class OrderedEnum:\n    pass\n"
+        "class DummyTypeEnum(OrderedEnum):\n"
+        "    DummyComposition = 1\n",
+        encoding="utf-8",
+    )
+    (pkg / "app.py").write_text(
+        "from .types import DummyTypeEnum as DT\n"
+        "class Holder:\n"
+        "    kind: 'DT.DummyComposition' = DT.DummyComposition\n",
+        encoding="utf-8",
+    )
+
+    classes = {cls.fqcn: cls for cls in discover_classes(root)}
+    rels = set(collect_all_relations(classes))
+
+    assert (
+        "pkg.types.DummyTypeEnum",
+        RelationType.ASSOCIATION,
+        "pkg.app.Holder",
+    ) in rels
+
+
 def test_discover_classes_follow_init_py_flattens_namespaces(tmp_path: Path) -> None:
     root = tmp_path / "src"
     pkg = root / "pkg"

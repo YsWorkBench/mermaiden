@@ -31,6 +31,8 @@ from paths import (
     parse_python_file,
 )
 
+_IMPORT_ALIAS_CACHE: dict[tuple[str, str], dict[str, str]] = {}
+
 
 class RelationCollector:
     """Collect attributes and relations from a class AST node."""
@@ -581,6 +583,125 @@ def _resolve_import_target(
     return None
 
 
+def _parse_import_aliases(module_name: str, filepath: Path) -> dict[str, str]:
+    """Parse module imports and map local aliases to fully qualified targets."""
+    cache_key = (str(filepath.resolve()), module_name)
+    cached = _IMPORT_ALIAS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    aliases: dict[str, str] = {}
+    if not filepath.exists():
+        _IMPORT_ALIAS_CACHE[cache_key] = aliases
+        return aliases
+
+    import_context_module = module_name
+    if filepath.stem != "__init__":
+        import_context_module = (
+            module_name.rsplit(".", 1)[0] if "." in module_name else ""
+        )
+
+    tree = parse_python_file(filepath)
+    module_node = tree if isinstance(tree, ast.Module) else None
+    if module_node is None:
+        _IMPORT_ALIAS_CACHE[cache_key] = aliases
+        return aliases
+
+    for stmt in module_node.body:
+        if isinstance(stmt, ast.Import):
+            for alias in stmt.names:
+                local_name = alias.asname or alias.name.split(".")[0]
+                aliases[local_name] = alias.name
+            continue
+
+        if not isinstance(stmt, ast.ImportFrom):
+            continue
+
+        target_module = _resolve_import_target(
+            import_context_module,
+            stmt.module,
+            stmt.level,
+        )
+        for alias in stmt.names:
+            if alias.name == "*":
+                continue
+
+            local_name = alias.asname or alias.name
+            if target_module:
+                aliases[local_name] = f"{target_module}.{alias.name}"
+            else:
+                aliases[local_name] = alias.name
+
+    _IMPORT_ALIAS_CACHE[cache_key] = aliases
+    return aliases
+
+
+def _expand_target_candidates(target_name: str, current_class: ClassInfo) -> list[str]:
+    """Expand relation targets with alias-aware and dotted-prefix candidates."""
+    raw_target = target_name.strip().strip("'").strip('"')
+    if not raw_target:
+        return []
+
+    import_aliases = _parse_import_aliases(
+        module_name=current_class.module,
+        filepath=Path(current_class.filepath),
+    )
+
+    expanded: list[str] = []
+    seen_expanded: set[str] = set()
+
+    def add_expanded(candidate: str) -> None:
+        if not candidate or candidate in seen_expanded:
+            return
+        seen_expanded.add(candidate)
+        expanded.append(candidate)
+
+    add_expanded(raw_target)
+    if raw_target in import_aliases:
+        add_expanded(import_aliases[raw_target])
+    if "." in raw_target:
+        head, tail = raw_target.split(".", 1)
+        if head in import_aliases:
+            add_expanded(f"{import_aliases[head]}.{tail}")
+
+    candidates: list[str] = []
+    seen_candidates: set[str] = set()
+    for name in expanded:
+        parts = [part for part in name.split(".") if part]
+        for end in range(len(parts), 0, -1):
+            candidate = ".".join(parts[:end])
+            if candidate in seen_candidates:
+                continue
+            seen_candidates.add(candidate)
+            candidates.append(candidate)
+
+    return candidates
+
+
+def _resolve_target_candidate(
+    candidate: str, current_class: ClassInfo, known_classes: dict[str, ClassInfo]
+) -> str | None:
+    """Resolve one target candidate to a known class FQCN."""
+    if candidate in known_classes:
+        return candidate
+
+    same_module = (
+        f"{current_class.module}.{candidate}" if current_class.module else candidate
+    )
+    if same_module in known_classes:
+        return same_module
+
+    suffix_matches = [
+        fqcn
+        for fqcn in known_classes
+        if fqcn.endswith(f".{candidate}") or fqcn == candidate
+    ]
+    if len(suffix_matches) == 1:
+        return suffix_matches[0]
+
+    return None
+
+
 def _parse_init_exports(
     root_dir: Path, namespace_from_root: bool = False
 ) -> dict[str, dict[str, set[str]]]:
@@ -879,22 +1000,10 @@ def resolve_target_name(
     target_name: str, current_class: ClassInfo, known_classes: dict[str, ClassInfo]
 ) -> str | None:
     """Resolve a relation target to a known fully qualified class name."""
-    if target_name in known_classes:
-        return target_name
-
-    same_module = (
-        f"{current_class.module}.{target_name}" if current_class.module else target_name
-    )
-    if same_module in known_classes:
-        return same_module
-
-    suffix_matches = [
-        fqcn
-        for fqcn in known_classes
-        if fqcn.endswith(f".{target_name}") or fqcn == target_name
-    ]
-    if len(suffix_matches) == 1:
-        return suffix_matches[0]
+    for candidate in _expand_target_candidates(target_name, current_class):
+        resolved = _resolve_target_candidate(candidate, current_class, known_classes)
+        if resolved is not None:
+            return resolved
 
     return None
 
